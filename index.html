@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>楼盘销控表</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='12' fill='%231a3a5c'/%3E%3Ctext x='50' y='68' font-size='56' text-anchor='middle' fill='%23fff'%3E🏢%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --p: #1a3a5c; --pl: #3a6b9a; --ac: #c62828;
+  --tp: #1e293b; --ts: #475569; --tl: #64748b;
+  --bg: #f1f5f9; --cd: #ffffff; --cd2: #f8fafc; --bd: #e2e8f0;
+  --sb: #fef2f2; --sbb: #fecaca;
+  --sh: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg); color: var(--tp); min-height: 100vh; font-size: 14px;
+  overflow: hidden; height: 100vh;
+}
+
+.top-bar {
+  background: linear-gradient(135deg, var(--p) 0%, var(--pl) 100%);
+  color: #fff; padding: 10px 20px; display: flex; align-items: center;
+  justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  flex-wrap: wrap; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.top-bar h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+.top-bar .sub { font-size: 11px; opacity: 0.75; }
+.top-actions { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.theme-dot { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid rgba(255,255,255,0.3); transition: 0.2s; display: inline-block; }
+.theme-dot:hover { transform: scale(1.15); }
+.theme-dot.active { border-color: #fff; box-shadow: 0 0 0 2px var(--p); }
+.btn { padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; background: transparent; color: var(--ts); white-space: nowrap; }
+.btn:hover { background: var(--bg); }
+.top-actions .btn { color: #fff; background: rgba(255,255,255,0.15); }
+.top-actions .btn:hover { background: rgba(255,255,255,0.25); }
+.top-actions .btn-primary { background: #fff; color: var(--p); }
+.top-actions .btn-primary:hover { background: #f0f4ff; }
+.btn-sm { padding: 4px 8px; font-size: 11px; }
+.btn-primary { background: #fff; color: var(--p); }
+.btn-primary:hover { background: #f0f4ff; }
+.btn-danger { color: #dc2626; }
+.btn-danger:hover { background: rgba(252,165,165,0.2); }
+.btn-outline { background: transparent; color: var(--p); border: 1px solid var(--bd); }
+.btn-outline:hover { background: var(--bg); }
+
+.page { display: none; height: calc(100vh - 50px); overflow-y: auto; }
+.page.active { display: block; }
+.page-setup { padding: 16px 24px; }
+#page-control { max-width: 100%; height: calc(100vh - 50px); overflow: hidden; }
+
+.card {
+  background: var(--cd); border-radius: 10px; box-shadow: var(--sh);
+  padding: 20px; margin-bottom: 14px; border: 1px solid var(--bd);
+}
+.card h2 { font-size: 16px; color: var(--p); margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--bg); }
+.card h3 { font-size: 14px; color: var(--ts); margin: 10px 0; }
+.warn { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 12px; line-height: 1.6; }
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 12px; color: var(--ts); font-weight: 500; }
+.form-group input, .form-group select {
+  padding: 8px 12px; border: 1px solid var(--bd); border-radius: 6px;
+  font-size: 13px; outline: none; transition: 0.15s; background: var(--cd); box-sizing: border-box; width: 100%;
+}
+.form-group input:focus, .form-group select:focus { border-color: var(--pl); box-shadow: 0 0 0 3px rgba(58,107,154,0.12); }
+.card.drag-over { border-color: var(--p); box-shadow: 0 0 0 2px rgba(58,107,154,0.2); }
+.drag-handle { cursor: grab; color: var(--tl); font-size: 14px; user-select: none; padding: 2px 6px; border-radius: 4px; transition: 0.15s; display: inline-flex; align-items: center; }
+.drag-handle:hover { background: var(--cd2); color: var(--ts); }
+.dragging .drag-handle { cursor: grabbing; }
+.card.dragging { opacity: 0.4; }
+
+.steps { display: flex; gap: 3px; margin-bottom: 16px; }
+.step { flex: 1; text-align: center; padding: 8px; background: var(--cd2); border-radius: 6px; font-size: 12px; color: var(--tl); }
+.step.active { background: var(--p); color: #fff; }
+.step.done { background: #dcfce7; color: #166534; }
+.step .num { display: inline-block; width: 20px; height: 20px; line-height: 20px; border-radius: 50%; background: rgba(0,0,0,0.08); margin-right: 4px; font-size: 11px; font-weight: 600; }
+.step.active .num { background: rgba(255,255,255,0.2); }
+
+.tab-bar { display: flex; gap: 2px; background: var(--cd); padding: 0 12px; overflow-x: auto; border-bottom: 1px solid var(--bd); }
+.tab-item { padding: 10px 16px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--ts); border-bottom: 2px solid transparent; transition: 0.15s; white-space: nowrap; }
+.tab-item:hover { color: var(--p); background: var(--cd2); }
+.tab-item.active { color: var(--p); border-bottom-color: var(--p); font-weight: 600; }
+.tab-item .cnt { font-size: 10px; color: var(--tl); margin-left: 4px; }
+
+.stats-bar { display: none; background: var(--cd); padding: 8px 16px; border-bottom: 1px solid var(--bd); align-items: stretch; justify-content: space-between; }
+.stats-bar.active { display: flex; flex-wrap: wrap; gap: 6px; }
+#project-stats { display: none; background: linear-gradient(135deg, var(--p) 0%, var(--pl) 100%); color: #fff; padding: 10px 16px; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+#project-stats.active { display: flex; }
+#project-stats .ps-item { padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 6px; white-space: nowrap; }
+#project-stats .ps-item b { font-size: 15px; margin: 0 2px; }
+#project-stats .ps-rate { font-size: 13px; font-weight: 700; padding: 4px 12px; background: rgba(255,255,255,0.15); border-radius: 6px; }
+.stat-item { font-size: 12px; color: var(--ts); }
+.stat-item b { color: var(--tp); font-weight: 600; }
+.filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--cd2); border: 1px solid var(--bd); border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+.filter-bar label { display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--ts); font-size: 12px; }
+.filter-bar input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--p); }
+.filter-bar select { padding: 3px 6px; font-size: 12px; border: 1px solid var(--bd); border-radius: 4px; background: var(--cd); color: var(--tp); }
+.filter-bar select:disabled { opacity: 0.35; cursor: not-allowed; }
+.filter-bar .disabled-label { opacity: 0.35; cursor: not-allowed; }
+.filter-bar .disabled-label input { pointer-events: none; }
+.filter-popover-wrap { position: relative; display: inline-block; }
+.filter-popup-btn { padding: 3px 8px; font-size: 12px; border: 1px solid var(--bd); border-radius: 4px; background: var(--cd); color: var(--ts); cursor: pointer; white-space: nowrap; }
+.filter-popup-btn:hover { background: var(--cd2); }
+.filter-popup { display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 300; background: var(--cd); border: 1px solid var(--bd); border-radius: 8px; padding: 6px 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); min-width: 120px; max-height: 260px; overflow-y: auto; }
+.filter-popup.show { display: block; }
+.filter-popup label { display: flex; align-items: center; gap: 4px; padding: 3px 6px; font-size: 12px; cursor: pointer; white-space: nowrap; border-radius: 4px; }
+.filter-popup label:hover { background: var(--cd2); }
+.filter-popup label input { margin: 0; width: 14px; height: 14px; accent-color: var(--p); }
+.filter-popup .popup-header { font-size: 10px; color: var(--tl); padding: 2px 6px 4px; border-bottom: 1px solid var(--bd); margin-bottom: 4px; display: flex; justify-content: space-between; }
+.filter-popup .popup-header span { cursor: pointer; color: var(--pl); }
+.filter-popup .popup-header span:hover { text-decoration: underline; }
+/* Edit modal - dimmed fields */
+#ed-fields.dimmed { opacity: 0.35; pointer-events: none; }
+/* Channel dimmed rooms */
+.room-cell.channel-dimmed { background: #f0f1f3 !important; }
+.room-cell.channel-dimmed .cell .s,
+.room-cell.channel-dimmed .cell .us { color: #c0c4c8 !important; }
+.room-cell.channel-dimmed .cell .v,
+.room-cell.channel-dimmed .cell .v-su,
+.room-cell.channel-dimmed .cell .v-ap,
+.room-cell.channel-dimmed .cell .l,
+.room-cell.channel-dimmed .cell .orient { color: #c5c9cd !important; }
+.room-cell.channel-dimmed .cell .row .v { color: #c5c9cd !important; }
+.room-cell.filter-dimmed { background: #e8eaed !important; }
+.room-cell.filter-dimmed .cell .s,
+.room-cell.filter-dimmed .cell .us { color: #b0b4b8 !important; }
+.room-cell.filter-dimmed .cell .v,
+.room-cell.filter-dimmed .cell .v-su,
+.room-cell.filter-dimmed .cell .v-ap,
+.room-cell.filter-dimmed .cell .l,
+.room-cell.filter-dimmed .cell .orient { color: #b5b9bd !important; }
+.room-cell.filter-dimmed .cell .row .v { color: #b5b9bd !important; }
+/* Filter dialog overlay */
+.filter-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.2); z-index: 500; justify-content: center; align-items: flex-start; padding-top: 12vh; }
+.filter-overlay.show { display: flex; }
+.filter-dialog { background: var(--cd); border-radius: 12px; padding: 18px 22px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); max-width: 420px; width: 90%; }
+.filter-dialog h3 { font-size: 14px; margin-bottom: 12px; color: var(--tp); padding-bottom: 8px; border-bottom: 1px solid var(--bd); }
+.filter-dialog .fd-section { margin-bottom: 12px; }
+.filter-dialog .fd-section .fd-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.filter-dialog .fd-section .fd-header label { font-size: 12px; font-weight: 600; color: var(--ts); }
+.filter-dialog .fd-section .fd-header .fd-actions { font-size: 11px; color: var(--pl); cursor: pointer; }
+.filter-dialog .fd-section .fd-header .fd-actions span { margin-left: 10px; }
+.filter-dialog .fd-section .fd-header .fd-actions span:hover { text-decoration: underline; }
+.filter-dialog .fd-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter-dialog .fd-grid label { display: flex; align-items: center; gap: 3px; padding: 5px 10px; font-size: 12px; cursor: pointer; border: 1px solid var(--bd); border-radius: 6px; transition: 0.1s; background: var(--cd2); user-select: none; }
+.filter-dialog .fd-grid label:hover { border-color: var(--pl); }
+.filter-dialog .fd-grid label.checked { border-color: var(--pl); background: #e8f0fe; color: var(--p); font-weight: 600; }
+.filter-dialog .fd-grid label input { display: none; }
+
+.control-scroll { overflow: auto; max-height: calc(100vh - 240px); padding: 0 8px 8px; }
+.scontrol-table { border-collapse: collapse; width: auto; }
+.scontrol-table th, .scontrol-table td { text-align: center; }
+.scontrol-table tbody td { border: 1.5px solid #94a3b8; }
+.scontrol-table thead th { position: sticky; z-index: 10; border: 1.5px solid #64748b; }
+.scontrol-table thead tr:first-child th { top: 0; }
+.scontrol-table thead tr:nth-child(2) th { top: 31px; }
+.scontrol-table th { padding: 5px 4px; white-space: nowrap; }
+.unit-header { background: var(--p); color: #fff; font-weight: 700; padding: 5px 4px; font-size: 13px; letter-spacing: 0.5px; z-index: 12 !important; }
+.room-header { background: #e2e8f0; font-weight: 600; color: var(--ts); padding: 4px 3px; font-size: 12px; }
+.floor-label { width: 34px; min-width: 34px; font-size: 11px; font-weight: 600; color: var(--ts); background: var(--cd2); position: sticky; left: 0; z-index: 11; }
+.room-header .area { font-size: 10px; color: var(--tl); display: block; font-weight: 400; margin-top: 0; }
+
+.room-cell { width: 68px; min-width: 68px; height: 66px; padding: 2px 3px; cursor: pointer; vertical-align: top; transition: 0.1s; text-align: left !important; position: relative; }
+.room-cell.status-sold { background: #fef2f2; }
+.room-cell.status-sold:hover { background: #fecaca; }
+.room-cell.status-unsold { background: #fff; }
+.room-cell.status-unsold:hover { background: var(--cd2); }
+tr.floor-even td.room-cell.status-unsold { background: #f8fafc; }
+tr.floor-even td.room-cell.status-sold { background: #fef2f2; }
+
+.cell { line-height: 1.35; text-align: left; }
+.cell .s { color: var(--ac); font-weight: 700; font-size: 11px; }
+.cell .us { font-weight: 600; font-size: 11px; color: var(--ts); }
+.cell .l { color: var(--tl); font-size: 10px; }
+.cell .v { color: var(--tp); font-size: 11px; font-weight: 700; }
+.cell .v-su { color: #1a73e8; font-size: 11px; font-weight: 600; }
+.cell .v-ap { color: var(--ac); font-size: 11px; font-weight: 600; }
+.cell .r { color: var(--ac); font-size: 11px; font-weight: 600; }
+.cell .orient { font-size: 11px; font-weight: 700; color: #b85c00; }
+.cell .row { display: block; line-height: 1.25; }
+
+.tooltip { display: none; position: absolute; z-index: 200; background: var(--cd); border: 1px solid var(--bd); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 8px 12px; min-width: 180px; font-size: 11px; }
+.tooltip.top::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--bd); }
+.tooltip.bottom::after { content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-bottom-color: var(--bd); }
+.tooltip h4 { font-size: 12px; color: var(--p); margin-bottom: 4px; }
+.tooltip .r2 { display: flex; justify-content: space-between; font-size: 11px; padding: 1px 0; gap: 8px; }
+.tooltip .r2 .l2 { color: var(--tl); }
+.tooltip .r2 .v2 { color: var(--tp); font-weight: 500; }
+
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 500; justify-content: center; align-items: center; }
+.modal-overlay.active { display: flex; }
+.modal { background: var(--cd); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); padding: 24px; max-width: 480px; width: 92%; }
+.modal h2 { font-size: 16px; color: var(--p); margin-bottom: 4px; }
+.modal p { font-size: 12px; color: var(--ts); margin-bottom: 14px; }
+.modal .form-group { margin-bottom: 8px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.modal-wide { max-width: 760px; }
+
+.mapping-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 5px; margin-bottom: 10px; }
+.pw { max-height: 240px; overflow: auto; border: 1px solid var(--bd); border-radius: 6px; margin-bottom: 8px; }
+.pw table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.pw th, .pw td { padding: 3px 6px; border: 1px solid var(--bd); white-space: nowrap; }
+.pw th { position: sticky; top: 0; background: #e2e8f0; font-weight: 600; color: var(--ts); }
+
+.empty-state { text-align: center; padding: 50px 20px; color: var(--tl); }
+.empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+.empty-state h3 { font-size: 17px; color: var(--ts); margin-bottom: 6px; }
+.empty-state p { font-size: 13px; margin-bottom: 16px; }
+
+.toast { position: fixed; top: 70px; right: 20px; z-index: 999; padding: 10px 18px; border-radius: 8px; font-size: 12px; color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.15); transform: translateX(120%); transition: transform 0.3s; max-width: 600px; line-height: 1.5; }
+.toast.show { transform: translateX(0); }
+.toast.success { background: #16a34a; }
+.toast.error { background: #dc2626; }
+.toast.info { background: var(--pl); }
+
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.check-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ts); cursor: pointer; }
+.check-item input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--p); }
+
+/* Width level classes - applied to #page-control */
+.wl-compact .room-cell { width: 60px; min-width: 60px; height: 58px; padding: 2px 2px; }
+.wl-compact .room-cell .s { font-size: 10px; }
+.wl-compact .room-cell .us { font-size: 10px; }
+.wl-compact .room-cell .l { font-size: 9px; }
+.wl-compact .room-cell .v { font-size: 10px; }
+.wl-compact .room-cell .v-su { font-size: 10px; }
+.wl-compact .room-cell .v-ap { font-size: 10px; }
+.wl-compact .room-cell .r { font-size: 10px; }
+.wl-compact .room-cell .orient { font-size: 10px; }
+.wl-compact .cell .row { line-height: 1.2; }
+.wl-compact .unit-header { font-size: 11px; padding: 3px 2px; }
+.wl-compact .room-header { font-size: 10px; padding: 2px 2px; }
+.wl-compact .room-header .area { font-size: 9px; }
+.wl-compact .floor-label { width: 26px; min-width: 26px; font-size: 9px; }
+
+.wl-standard .room-cell { width: 80px; min-width: 80px; height: 72px; padding: 3px 3px; }
+.wl-standard .room-cell .s { font-size: 11px; }
+.wl-standard .room-cell .us { font-size: 11px; }
+.wl-standard .room-cell .l { font-size: 10px; }
+.wl-standard .room-cell .v { font-size: 11px; }
+.wl-standard .room-cell .v-su { font-size: 11px; }
+.wl-standard .room-cell .v-ap { font-size: 11px; }
+.wl-standard .room-cell .r { font-size: 11px; }
+.wl-standard .room-cell .orient { font-size: 11px; }
+.wl-standard .unit-header { font-size: 13px; padding: 5px 3px; }
+.wl-standard .room-header { font-size: 12px; padding: 4px 3px; }
+.wl-standard .floor-label { width: 30px; min-width: 30px; font-size: 10px; }
+
+.wl-comfort .room-cell { width: 90px; min-width: 90px; height: 78px; padding: 3px 4px; }
+.wl-comfort .room-cell .s { font-size: 12px; }
+.wl-comfort .room-cell .us { font-size: 12px; }
+.wl-comfort .room-cell .l { font-size: 10px; }
+.wl-comfort .room-cell .v { font-size: 12px; }
+.wl-comfort .room-cell .v-su { font-size: 12px; }
+.wl-comfort .room-cell .v-ap { font-size: 12px; }
+.wl-comfort .room-cell .r { font-size: 12px; }
+.wl-comfort .room-cell .orient { font-size: 12px; }
+.wl-comfort .unit-header { font-size: 14px; padding: 5px 4px; }
+.wl-comfort .room-header { font-size: 13px; padding: 4px 3px; }
+.wl-comfort .floor-label { width: 32px; min-width: 32px; font-size: 11px; }
+
+.wl-wide .room-cell { width: 100px; min-width: 100px; height: 84px; padding: 4px 5px; }
+.wl-wide .room-cell .s { font-size: 13px; }
+.wl-wide .room-cell .us { font-size: 13px; }
+.wl-wide .room-cell .l { font-size: 11px; }
+.wl-wide .room-cell .v { font-size: 13px; }
+.wl-wide .room-cell .v-su { font-size: 13px; }
+.wl-wide .room-cell .v-ap { font-size: 13px; }
+.wl-wide .room-cell .r { font-size: 13px; }
+.wl-wide .room-cell .orient { font-size: 13px; }
+.wl-wide .unit-header { font-size: 15px; padding: 6px 5px; }
+.wl-wide .room-header { font-size: 14px; padding: 5px 4px; }
+.wl-wide .floor-label { width: 36px; min-width: 36px; font-size: 12px; }
+
+/* Print styles - use current view content */
+@media print {
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  body { overflow: visible !important; height: auto !important; color: #1e293b !important; }
+  .top-bar { display: none !important; }
+  #page-setup, .modal-overlay, .toast, .stats-bar, .tab-bar, #project-stats { display: none !important; }
+  #page-control { height: auto !important; max-width: none !important; overflow: visible !important; }
+  .control-scroll { max-height: none !important; overflow: visible !important; padding: 0 !important; }
+  .scontrol-table { width: auto !important; }
+  .scontrol-table thead th { position: static !important; }
+  .floor-label { position: static !important; }
+  .tooltip { display: none !important; }
+  @page { margin: 8mm; }
+  #print-header { display: block !important; color: #1a3a5c !important; }
+  #print-header span { color: #1a3a5c !important; }
+  .unit-header { color: #fff !important; background: #1a3a5c !important; }
+  .room-header { background: #e2e8f0 !important; color: #1e293b !important; }
+  .scontrol-table td, .scontrol-table th { color: #1e293b !important; border-color: #64748b !important; }
+  .room-cell.status-sold { background: #fef2f2 !important; }
+  .room-cell.status-unsold { background: #fff !important; }
+  tr.floor-even td.room-cell.status-unsold { background: #f8fafc !important; }
+  .cell .s { color: #c62828 !important; }
+  .cell .us { color: #1e293b !important; font-weight: 600 !important; }
+  .cell .l, .cell .v, .cell .v-su, .cell .v-ap, .cell .orient { color: #1e293b !important; }
+  .no-print { display: none !important; }
+}
+.width-btn.active { background: rgba(255,255,255,0.2); color: #fff; border-color: #fff; }
+#print-header { display: none; }
+.no-print { display: none; }
+
+@media (max-width: 768px) {
+  .top-bar { flex-direction: column; }
+  .room-cell { width: 64px; min-width: 64px; height: 66px; }
+  .modal { width: 95%; }
+}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div>
+    <h1>🏢 销控表</h1>
+    <div class="sub" id="s-project-subtitle">项目 · 销售控制</div>
+  </div>
+  <div class="top-actions">
+    <span class="theme-dot active" data-theme="default" style="background:#1a3a5c" onclick="setTheme('default')"></span>
+    <span class="theme-dot" data-theme="ocean" style="background:#0d4a7a" onclick="setTheme('ocean')"></span>
+    <span class="theme-dot" data-theme="forest" style="background:#1b5e20" onclick="setTheme('forest')"></span>
+    <span class="theme-dot" data-theme="sunset" style="background:#b86314" onclick="setTheme('sunset')"></span>
+    <span class="theme-dot" data-theme="graphite" style="background:#37474f" onclick="setTheme('graphite')"></span>
+    <span class="wd-label" style="font-size:9px;color:rgba(255,255,255,0.5);margin:0 2px;">|</span>
+    <span class="width-btn" data-wl="compact" onclick="setWidthLevel('compact')">紧凑</span>
+    <span class="width-btn active" data-wl="standard" onclick="setWidthLevel('standard')">标准</span>
+    <span class="width-btn" data-wl="comfort" onclick="setWidthLevel('comfort')">舒适</span>
+    <span class="width-btn" data-wl="wide" onclick="setWidthLevel('wide')">宽松</span>
+    <span style="font-size:9px;color:rgba(255,255,255,0.5);">|</span>
+    <button class="btn btn-sm btn-primary" onclick="sc()">📊 销控表</button>
+    <button class="btn btn-sm" onclick="ss2()">🏗️ 楼栋</button>
+    <button class="btn btn-sm" onclick="showImportLedger()">📥 台账</button>
+    <button class="btn btn-sm btn-outline" onclick="showHelp()" style="font-size:10px;border-color:rgba(255,255,255,0.25);color:rgba(255,255,255,0.8);">📖 说明</button>
+    <button class="btn btn-sm" onclick="openSettings()">⚙️ 设置</button>
+  </div>
+</div>
+
+<div id="page-setup" class="page page-setup">
+  <div class="card">
+    <div class="steps">
+      <div class="step active" id="st1"><span class="num">1</span> 楼栋</div>
+      <div class="step" id="st2"><span class="num">2</span> 户型</div>
+      <div class="step" id="st3"><span class="num">3</span> 完成</div>
+    </div>
+    <h2>⚙️ 初始化销控表</h2>
+    <div id="ss1">
+      <div class="warn"><b>⚠️ 注意</b>：重新初始化会覆盖现有全部数据，建议先导出备份。</div>
+      <button class="btn btn-primary" onclick="downloadTemplate()">📤 下载模板</button>
+      <button class="btn btn-outline" onclick="document.getElementById('tu').click()" style="margin-left:8px;">📥 上传模板</button>
+      <input type="file" id="tu" accept=".xlsx,.xls" style="display:none" onchange="uploadTemplate(event)">
+      <h3 style="margin-top:16px;">手动添加楼栋</h3>
+      <div class="form-grid" id="bc" style="margin-bottom:12px;"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="addBld()">+ 添加楼栋</button>
+        <button class="btn btn-primary" onclick="goStep2()">下一步 →</button>
+      </div>
+    </div>
+    <div id="ss2" style="display:none;">
+      <div id="unit-cfg"></div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="goStep1()">← 上一步</button>
+        <button class="btn btn-primary" onclick="cfmInit()">✅ 完成初始化</button>
+      </div>
+    </div>
+    <div id="ss3" style="display:none;">
+      <div class="empty-state">
+        <div class="icon">✅</div><h3>初始化完成</h3>
+        <p>已生成房源框架，请导入销售台账填充数据。</p>
+        <button class="btn btn-primary" onclick="sc()">📊 查看销控表</button>
+        <button class="btn btn-outline" onclick="showImportLedger()" style="margin-left:8px;">📥 导入台账</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="page-control" class="page">
+  <div id="project-stats"></div>
+  <div class="tab-bar" id="tab-bar"></div>
+  <div id="print-header"></div>
+  <div class="stats-bar" id="stats-bar"></div>
+  <div class="control-scroll" id="cb">
+    <div class="empty-state"><div class="icon">📊</div><h3>暂无数据</h3><p>请先完成初始化配置。</p><button class="btn btn-primary" onclick="ss2()">开始配置</button></div>
+  </div>
+</div>
+
+<div id="footer" style="text-align:center;font-size:10px;color:#94a3b8;padding:8px 16px;border-top:1px solid #e2e8f0;margin-top:8px;">
+  AI辅助生成 · 联系 yongbing.yang@gmail.com
+</div>
+
+<div class="modal-overlay" id="help-modal">
+  <div class="modal" style="max-width:500px;">
+    <h2>📖 使用说明</h2>
+    <div style="font-size:12px;line-height:1.8;color:var(--ts);padding:4px 0;">
+      <b>🏗️ 楼栋</b> — 新建/编辑楼栋框架（名称、单元、楼层、户型、不可售楼层）<br>
+      <b>📥 台账</b> — 导入销售数据（Excel），系统自动匹配房源<br>
+      <b>⚙️ 设置</b> — 自定义项目名称、显示字段、阅后即焚、导出/导入框架<br>
+      <hr style="margin:10px 0;border-color:var(--bd);">
+      <b>📊 销控表操作</b><br>
+      · 点击单元格 — 编辑房源详情<br>
+      · 悬停单元格 — 查看完整信息<br>
+      · 悬停户型编号(01/02) — 查看该踢腿统计数据<br>
+      · 筛选栏 — 按已售/未售/渠道/时间筛选，非筛中项灰色变淡<br>
+      <hr style="margin:10px 0;border-color:var(--bd);">
+      <b>🏷️ 术语</b><br>
+      · <b>踢腿</b> = 同一户型在垂直方向上的所有房源（一列）<br>
+      · <b>框架</b> = 楼栋的物理结构（单元/户型/面积/朝向）<br>
+      <hr style="margin:10px 0;border-color:var(--bd);">
+      <div style="font-size:10px;color:#94a3b8;">AI辅助生成 · yongbing.yang@gmail.com</div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('help-modal')">知道了</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <h2>⚙️ 设置</h2>
+    
+    <!-- 项目信息 -->
+    <div style="margin-bottom:14px;"><b style="font-size:13px;color:var(--ts);">📋 项目信息</b>
+      <input type="text" id="s-project-name" style="width:100%;margin-top:6px;padding:7px 10px;font-size:12px;border:1px solid var(--bd);border-radius:6px;box-sizing:border-box;" placeholder="输入项目名称">
+    </div>
+    
+    <!-- 显示控制 -->
+    <div style="margin-bottom:14px;"><b style="font-size:13px;color:var(--ts);">👁️ 显示控制</b>
+      <label style="display:block;margin-top:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="chk-hover" checked> 鼠标悬停显示详情</label>
+      <div style="font-size:10px;color:#94a3b8;margin-top:2px;">"朝向"勾选控制状态后朝向显示</div>
+    </div>
+    
+    <!-- 格内显示字段 -->
+    <div style="margin-bottom:14px;"><b style="font-size:13px;color:var(--ts);">📦 格内显示字段</b>
+      <div style="margin-top:6px;"><span style="font-size:11px;color:var(--tl);">已售房源</span></div>
+      <div class="check-grid" id="sold-fields"></div>
+      <div style="margin-top:8px;"><span style="font-size:11px;color:var(--tl);">未售房源</span></div>
+      <div class="check-grid" style="margin-top:4px;" id="unsold-fields"></div>
+    </div>
+    
+    <!-- 数据管理 -->
+    <div style="margin-bottom:14px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+      <b style="font-size:13px;color:var(--ts);">💾 数据管理</b>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-sm" onclick="exportFramework()" style="font-size:11px;color:var(--p);background:var(--cd);border:1px solid var(--bd);">📤 导出楼座框架</button>
+        <button class="btn btn-sm" onclick="document.getElementById('fw-import').click()" style="font-size:11px;color:var(--p);background:var(--cd);border:1px solid var(--bd);">📥 导入楼座框架</button>
+        <input type="file" id="fw-import" accept=".json" style="display:none" onchange="importFramework(event)">
+      </div>
+      <div style="font-size:10px;color:#94a3b8;margin-top:4px;">框架含楼栋、单元、户型、面积、朝向、不可售楼层设置。</div>
+    </div>
+    
+    <!-- 🔥 阅后即焚 -->
+    <div style="margin-bottom:14px;padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="chk-wipe" onchange="if(this.checked&&!confirm('开启后，关闭浏览器时销售数据将自动清除，楼栋框架保留。确定？'))this.checked=false;">
+        <span style="font-size:13px;font-weight:600;color:#dc2626;cursor:pointer;" onclick="document.getElementById('chk-wipe').click()">阅后即焚</span>
+        <span style="font-size:16px;">🔥</span>
+      </div>
+      <div style="font-size:10px;color:#94a3b8;margin-top:4px;">关闭浏览器时自动清除成交数据，楼栋框架保留。</div>
+    </div>
+    
+    <!-- ⚠️ 危险操作 -->
+    <div style="padding-top:12px;border-top:1px solid var(--bd);">
+      <b style="font-size:13px;color:var(--ac);">⚠️ 危险操作</b>
+      <div style="margin-top:8px;display:flex;gap:8px;">
+        <button class="btn btn-danger btn-sm" onclick="if(confirm('⚠️ 确定重新初始化？将清除所有数据！'))ss2()">🗑️ 重新初始化</button>
+      </div>
+    </div>
+    
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeSettings()">关闭</button>
+      <button class="btn btn-primary" onclick="applySettings()">✅ 应用</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="import-modal">
+  <div class="modal modal-wide">
+    <h2>📥 导入销售台账</h2>
+    <p>选择Excel文件，检查映射关系后确认导入。</p>
+    <div class="form-group"><label>Excel文件</label><input type="file" id="ledger-upload" accept=".xlsx,.xls" onchange="handleLedgerUpload(event)"></div>
+    <div id="import-area" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px;">
+        <span style="font-size:13px;font-weight:500;color:var(--ts);">字段映射</span>
+        <button class="btn btn-outline" onclick="autoMap()" style="font-size:11px;padding:3px 8px;">🔄 自动检测</button>
+      </div>
+      <div class="mapping-grid" id="mapping-grid"></div>
+      <div style="font-size:13px;font-weight:500;color:var(--ts);margin-bottom:4px;">数据预览</div>
+      <div class="pw" id="pw"></div>
+      <div id="ps" style="font-size:12px;color:var(--tl);"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('import-modal')">取消</button>
+      <button class="btn btn-primary" id="import-btn" onclick="doImport()" style="display:none;">✅ 确认导入</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h2>✏️ 编辑房源</h2>
+    <div style="background:var(--cd2);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:13px;font-weight:600;color:var(--p);" id="ed-room-info">—</span>
+      <label style="margin-left:auto;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 8px;border:1px solid var(--ac);border-radius:6px;background:#fff5f5;">
+        <input type="checkbox" id="ed-unsellable" onchange="toggleunsellable()"> 🚫 该位置无房源（大堂/架空层）
+      </label>
+    </div>
+    <div class="form-group" style="display:none;"><label>楼栋</label><select id="eb" onchange="loadER()"></select></div>
+    <div class="form-group" style="display:none;"><label>房源</label><select id="er" onchange="loadED()"></select></div>
+    <div class="form-grid" id="ed-fields" style="margin-top:8px;">
+      <div class="form-group"><label>状态</label><select id="es"><option value="待售">待售</option><option value="已售">已售</option><option value="预留">预留</option><option value="工抵">工抵</option></select></div>
+      <div class="form-group"><label>成交日期</label><input type="date" id="ed-date"></div>
+      <div class="form-group"><label>客户</label><input type="text" id="ed-cust"></div>
+      <div class="form-group"><label>来访途径</label><input type="text" id="ed-src"></div>
+      <div class="form-group"><label>底总价</label><input type="number" id="ed-btp"></div>
+      <div class="form-group"><label>底单价</label><input type="number" id="ed-bup"></div>
+      <div class="form-group"><label>成交总价</label><input type="number" id="ed-stp"></div>
+      <div class="form-group"><label>成交单价</label><input type="number" id="ed-sup"></div>
+      <div class="form-group"><label>渠道佣金</label><input type="number" id="ed-comm"></div>
+      <div class="form-group"><label>佣金点位</label><input type="text" id="ed-cr"></div>
+      <div class="form-group"><label>扣佣后总价</label><input type="number" id="ed-pct"></div>
+      <div class="form-group"><label>扣佣后单价</label><input type="number" id="ed-pcu"></div>
+      <div class="form-group"><label>渠道成交</label><select id="ed-channel"><option value="">否</option><option value="是">是</option></select></div>
+      <div class="form-group"><label>最终折扣</label><input type="text" id="ed-disc"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('edit-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveED()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="room-editor-modal">
+  <div class="modal modal-wide">
+    <h2>✏️ 编辑踢腿</h2>
+    <p id="ret"></p>
+    <button class="btn btn-primary btn-sm" onclick="addRR()" style="margin-bottom:10px;">+ 新增踢腿</button>
+    <div style="max-height:320px;overflow:auto;border:1px solid var(--bd);border-radius:6px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:var(--p);color:#fff;position:sticky;top:0;">
+          <th style="padding:6px 8px;width:54px;">#</th>
+          <th style="padding:6px 8px;">踢腿编号</th>
+          <th style="padding:6px 8px;">面积(㎡)</th>
+          <th style="padding:6px 8px;">朝向</th>
+          <th style="padding:6px 8px;">不可售楼层</th>
+          <th style="padding:6px 8px;width:64px;">操作</th>
+        </tr></thead>
+        <tbody id="retb"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('room-editor-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveRE()">✅ 保存</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="data-import" accept=".json" style="display:none" onchange="handleDataImport(event)">
+
+<!-- Filter dialog overlay -->
+<div class="filter-overlay" id="filter-overlay">
+  <div class="filter-dialog">
+    <h3>📅 时间筛选</h3>
+    <div class="fd-section">
+      <div class="fd-header">
+        <label>年份</label>
+        <div class="fd-actions">
+          <span onclick="fdSelAll('years',true)">全选</span>
+          <span onclick="fdSelAll('years',false)">清除</span>
+        </div>
+      </div>
+      <div class="fd-grid" id="fd-years"></div>
+    </div>
+    <div class="fd-section">
+      <div class="fd-header">
+        <label>月份</label>
+        <div class="fd-actions">
+          <span onclick="fdSelAll('months',true)">全选</span>
+          <span onclick="fdSelAll('months',false)">清除</span>
+        </div>
+      </div>
+      <div class="fd-grid" id="fd-months"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let S = { blds: [], rms: {}, init: false, theme: 'default', hover: true, sf: ['date','bu','su','cr','ap','disc'], uf: ['bu'], filter: { showSold: true, showUnsold: true, showChannel: false, years: [], months: [] } };
+let bc = []; let ct = 0; let ebi=-1, eui=-1; let lr=null, lm={}, lh=[];
+
+function ls() { try { const s = localStorage.getItem('xk_s'); if (s) { S = JSON.parse(s); at(S.theme||'default'); } } catch(e) {} 
+  // Migrate old filter format to multi-select arrays
+  if(S.filter){
+    if(typeof S.filter.years==='string'||S.filter.year!==undefined){
+      S.filter.years=S.filter.year?[S.filter.year]:[];
+      S.filter.months=S.filter.month?[S.filter.month]:[];
+      delete S.filter.year; delete S.filter.month;
+    }
+    if(S.filter.showChannel===undefined)S.filter.showChannel=false;
+    
+  } else {
+    S.filter={showSold:true,showUnsold:true,showChannel:false,years:[],months:[]};
+  }
+  ss(); // Persist migrated state
+  // Apply project name to header
+  if(S.projectName)document.getElementById('s-project-subtitle').textContent=S.projectName+' · 销售控制';
+}
+function ss() { try { localStorage.setItem('xk_s', JSON.stringify(S)); } catch(e) { console.warn('Save failed:',e); } }
+
+function at(n) {
+  const m = { default:'#1a3a5c,#3a6b9a', ocean:'#0d4a7a,#2a6a9a', forest:'#1b5e20,#388e3c', sunset:'#b86314,#d47a2e', graphite:'#37474f,#546e7a' };
+  const c = m[n]||m.default; const [p,pl] = c.split(',');
+  document.documentElement.style.setProperty('--p', p); document.documentElement.style.setProperty('--pl', pl);
+  document.querySelectorAll('.theme-dot').forEach(d => d.classList.toggle('active', d.dataset.theme===n));
+}
+function setTheme(n) { S.theme=n; at(n); ss(); }
+
+function setWidthLevel(lvl){
+  S.wl=lvl; ss();
+  const pc=document.getElementById('page-control');
+  pc.classList.remove('wl-compact','wl-standard','wl-comfort','wl-wide');
+  pc.classList.add('wl-'+lvl);
+  document.querySelectorAll('.width-btn').forEach(b=>b.classList.toggle('active', b.dataset.wl===lvl));
+  // Update debug button if present
+  const db=document.querySelector('.btn[onclick*="toggleDebug"]');
+  if(db){db.textContent='🐛 Debug '+(window._dbg?'ON':'OFF');db.style.background=window._dbg?'rgba(255,200,0,0.3)':'rgba(255,255,255,0.1)';}
+}
+function toggleDebug(){
+  window._dbg=!window._dbg;
+  toast('Debug '+(window._dbg?'已开启，重新导入台账':'已关闭'),'info');
+}
+
+function toast(msg, t='success') {
+  let d = document.createElement('div'); d.className = `toast ${t}`; 
+  d.innerHTML = msg;
+  document.body.appendChild(d);
+  requestAnimationFrame(() => d.classList.add('show'));
+  // Debug toasts stay longer; normal toasts auto-dismiss
+  const timeout = t==='info' && msg.length>80 ? 15000 : 4000;
+  setTimeout(() => { d.classList.remove('show'); setTimeout(() => d.remove(), 300); }, timeout);
+}
+function sp(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function ss2() { sp('page-setup'); 
+  if(S.init&&S.blds.length){bc=S.blds.map(b=>({name:b.name,units:b.units,floorFrom:b.floorFrom,floorTo:b.floorTo,roomIdentifiers:(b.roomIdentifiers||[]).map(u=>({unit:u.unit,rooms:u.rooms.map(r=>({...r})),unitName:u.unitName||''}))}));}
+  goStep1(); }
+function sc() { sp('page-control'); rc(); }
+
+function addBld(d) {
+  const i = bc.length; const c = d || {name:'', units:1, floorFrom:1, floorTo:18};
+  if (!c.name) c.name = '';
+  bc.push(c);
+  const el = document.getElementById('bc');
+  const div = document.createElement('div'); div.className = 'card'; div.style.padding='20px'; div.style.marginBottom='0';
+  div.draggable = true;
+  div.ondragstart = (e) => handleDragStart(e, i);
+  div.ondragover = (e) => handleDragOver(e, i);
+  div.ondrop = (e) => handleDrop(e, i);
+  div.ondragend = () => handleDragEnd();
+  div.innerHTML = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;"><span class="drag-handle" title="拖拽排序">⠿</span><b style="color:var(--p);font-size:13px;">楼栋 #${i+1}</b><button class="btn btn-danger btn-sm" style="margin-left:auto;" onclick="rmBld(${bc.length-1})">删除</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>名称</label><input type="text" value="${c.name}" onchange="bc[${i}].name=this.value" placeholder="如：1号楼"></div>
+      <div class="form-group"><label>单元数</label><input type="number" min="1" max="10" value="${c.units}" onchange="bc[${i}].units=parseInt(this.value)||1"></div>
+      <div class="form-group"><label>起始楼层</label><input type="number" value="${c.floorFrom}" onchange="bc[${i}].floorFrom=parseInt(this.value)||1"></div>
+      <div class="form-group"><label>终止楼层</label><input type="number" value="${c.floorTo}" onchange="bc[${i}].floorTo=parseInt(this.value)||1"></div>
+    </div>`;
+  el.appendChild(div);
+}
+function rmBld(i) { 
+  const b=bc[i];
+  if(b&&b.name){
+    const rooms=Object.values(S.rms).filter(r=>r.building===b.name);
+    const sold=rooms.filter(r=>isSold(r));
+    if(sold.length>0){toast(`⚠️ 楼盘「${b.name}」有${sold.length}套已售数据，请先返回销控表清空数据再删除`,'error');return;}
+    if(rooms.length>0&&!confirm(`⚠️ 楼盘「${b.name}」有${rooms.length}套房源（无已售），删除将清除这些房源，确认？`))return;
+  }
+  bc.splice(i,1); rbC(); }
+function rbC() { const el=document.getElementById('bc'); el.innerHTML=''; const s=[...bc]; bc=[]; s.forEach(c=>addBld(c)); if(!bc.length) { addBld(); } }
+
+let _dragIdx = -1;
+function handleDragStart(e, idx) {
+  _dragIdx = idx;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(idx));
+  setTimeout(() => e.target.classList.add('dragging'), 0);
+}
+function handleDragOver(e, idx) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('#bc .card').forEach(c => c.classList.remove('drag-over'));
+  if (_dragIdx !== idx) e.currentTarget.classList.add('drag-over');
+}
+function handleDrop(e, idx) {
+  e.preventDefault();
+  document.querySelectorAll('#bc .card').forEach(c => c.classList.remove('drag-over','dragging'));
+  if (_dragIdx < 0 || _dragIdx === idx) { _dragIdx = -1; return; }
+  const item = bc.splice(_dragIdx, 1)[0];
+  const targetIdx = idx > _dragIdx ? idx - 1 : idx;
+  bc.splice(targetIdx, 0, item);
+  _dragIdx = -1;
+  rbC();
+}
+function handleDragEnd() {
+  document.querySelectorAll('#bc .card').forEach(c => c.classList.remove('drag-over','dragging'));
+  _dragIdx = -1;
+}
+
+function goStep1() {
+  document.getElementById('ss1').style.display='block'; document.getElementById('ss2').style.display='none'; document.getElementById('ss3').style.display='none';
+  document.querySelectorAll('.step')[0].className='step active'; document.querySelectorAll('.step')[1].className='step'; document.querySelectorAll('.step')[2].className='step';
+  rbC();
+}
+
+function goStep2() {
+  for (let i=0;i<bc.length;i++) { const c=bc[i]; if (!c.name.trim()) { toast('楼栋 #'+(i+1)+' 请填写名称','error'); return; } if (c.floorTo<c.floorFrom) { toast('楼层范围有误','error'); return; } if (!c.roomIdentifiers) { c.roomIdentifiers=[]; for(let u=0;u<c.units;u++) c.roomIdentifiers.push({unit:u+1,rooms:[],unitName:''}); } }
+  document.getElementById('ss1').style.display='none'; document.getElementById('ss2').style.display='block';
+  document.querySelectorAll('.step')[0].className='step done'; document.querySelectorAll('.step')[1].className='step active';
+  rUC();
+}
+
+function rUC() {
+  const area=document.getElementById('unit-cfg'); area.innerHTML='';
+  bc.forEach((bld,bi)=>{
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML=`<h2>${bld.name} — 踢腿配置</h2>`;
+    const g=document.createElement('div'); g.className='form-grid'; g.style.gridTemplateColumns='repeat(auto-fill,minmax(240px,1fr))';
+    for(let u=0;u<bld.units;u++){
+      if(!bld.roomIdentifiers[u]) bld.roomIdentifiers[u]={unit:u+1,rooms:[],unitName:''};
+      const ud=bld.roomIdentifiers[u];
+      const bk=document.createElement('div'); bk.className='card'; bk.style.padding='12px';bk.style.marginBottom='0';
+      bk.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+        <input type="text" value="${ud.unitName||''}" placeholder="${u+1}单元" style="width:100px;padding:4px 8px;font-size:12px;border:1px solid var(--bd);border-radius:6px;" onchange="bc[${bi}].roomIdentifiers[${u}].unitName=this.value">
+        <span style="font-size:11px;color:var(--tl);">${u+1}单元</span></div>
+        <div style="font-size:12px;color:var(--ts);margin-bottom:6px;">${ud.rooms.length||0} 踢腿</div>
+        <button class="btn btn-primary btn-sm" onclick="openRE(${bi},${u})">✏️ 编辑踢腿</button>`;
+      g.appendChild(bk);
+    }
+    card.appendChild(g); area.appendChild(card);
+  });
+}
+
+function openRE(bi,ui){ebi=bi;eui=ui;const b=bc[bi],u=b.roomIdentifiers[ui];document.getElementById('ret').textContent=`${b.name} · ${u.unitName||(u.unit+'单元')} — ${u.rooms.length}踢腿`;rER();document.getElementById('room-editor-modal').classList.add('active');}
+function rER(){const u=bc[ebi].roomIdentifiers[eui];document.getElementById('retb').innerHTML=u.rooms.map((r,ri)=>`<tr><td style="padding:5px 8px;border:1px solid var(--bd);text-align:center;font-size:12px;"><span onclick="mRU(${ri})" style="cursor:pointer;font-size:10px;">⬆</span> ${ri+1} <span onclick="mRD(${ri})" style="cursor:pointer;font-size:10px;">⬇</span></td><td style="padding:5px 8px;border:1px solid var(--bd);"><input type="text" value="${r.id}" data-idx="${ri}" class="eri" style="width:56px;padding:4px 8px;border:1px solid var(--bd);border-radius:4px;font-size:13px;text-align:center;"></td><td style="padding:5px 8px;border:1px solid var(--bd);"><input type="number" step="0.1" value="${r.area}" data-idx="${ri}" class="ea" style="width:76px;padding:4px 8px;border:1px solid var(--bd);border-radius:4px;font-size:13px;"></td><td style="padding:5px 8px;border:1px solid var(--bd);"><input type="text" value="${r.orientation}" data-idx="${ri}" class="eo" style="width:76px;padding:4px 8px;border:1px solid var(--bd);border-radius:4px;font-size:13px;"></td><td style="padding:5px 8px;border:1px solid var(--bd);"><input type="text" value="${r.unsellableFloors||''}" data-idx="${ri}" class="euf" style="width:100px;padding:4px 8px;border:1px solid var(--bd);border-radius:4px;font-size:12px;" placeholder="如2,4-6"></td><td style="padding:5px 8px;border:1px solid var(--bd);text-align:center;"><button class="btn btn-danger btn-sm" onclick="dER(${ri})" style="padding:2px 6px;">删除</button></td></tr>`).join('');}
+function addRR(){const u=bc[ebi].roomIdentifiers[eui];u.rooms.push({id:String(u.rooms.length+1).padStart(2,'0'),area:'',orientation:'',unsellableFloors:''});rER();}
+function dER(ri){if(!confirm('确定删除第'+(ri+1)+'踢腿？'))return;bc[ebi].roomIdentifiers[eui].rooms.splice(ri,1);rER();}
+function mRU(ri){if(ri===0)return;const u=bc[ebi].roomIdentifiers[eui];[u.rooms[ri-1],u.rooms[ri]]=[u.rooms[ri],u.rooms[ri-1]];rER();}
+function mRD(ri){const u=bc[ebi].roomIdentifiers[eui];if(ri>=u.rooms.length-1)return;[u.rooms[ri],u.rooms[ri+1]]=[u.rooms[ri+1],u.rooms[ri]];rER();}
+function saveRE(){const u=bc[ebi].roomIdentifiers[eui];document.querySelectorAll('.eri').forEach(i=>{const idx=parseInt(i.dataset.idx);if(idx<u.rooms.length)u.rooms[idx].id=i.value||String(idx+1).padStart(2,'0');});document.querySelectorAll('.ea').forEach(i=>{const idx=parseInt(i.dataset.idx);if(idx<u.rooms.length)u.rooms[idx].area=i.value?parseFloat(i.value):'';});document.querySelectorAll('.eo').forEach(i=>{const idx=parseInt(i.dataset.idx);if(idx<u.rooms.length)u.rooms[idx].orientation=i.value||'';});document.querySelectorAll('.euf').forEach(i=>{const idx=parseInt(i.dataset.idx);if(idx<u.rooms.length)u.rooms[idx].unsellableFloors=i.value||'';});closeModal('room-editor-modal');rUC();toast('户型已保存','success');}
+
+function cfmInit(){
+  // Handle edit mode (edit existing building frame)
+  if(window._eb){
+    const oldName=window._eb;window._eb=null;
+    const newCfg=bc[0];if(!newCfg||!newCfg.name.trim()){toast('楼栋名称不能为空','error');return;}
+    // Save old room data
+    const old={};Object.keys(S.rms).forEach(k=>{if(k.startsWith(oldName+'-'))old[k]={...S.rms[k]};});
+    // Remove old rooms
+    Object.keys(S.rms).forEach(k=>{if(k.startsWith(oldName+'-'))delete S.rms[k];});
+    // Remove old building, add new
+    S.blds=S.blds.filter(b=>b.name!==oldName);
+    const nb={id:'bld_'+S.blds.length,name:newCfg.name,units:newCfg.units,floorFrom:newCfg.floorFrom||1,floorTo:newCfg.floorTo||18,roomIdentifiers:newCfg.roomIdentifiers.map(u=>({unit:u.unit,rooms:u.rooms.map(r=>({...r})),unitName:u.unitName||''}))};
+    S.blds.push(nb);
+    const fs=[];for(let f=nb.floorTo;f>=nb.floorFrom;f--)fs.push(f);
+    fs.forEach(fl=>{nb.roomIdentifiers.forEach(u=>{u.rooms.forEach(r=>{const id=`${nb.name}-${u.unit}-${fl}-${r.id}`;
+      const o=old[id];const uf=isUnsfFloor(r.unsellableFloors,fl);S.rms[id]=o?{...o,area:r.area||o.area,orientation:r.orientation||o.orientation}:{id,building:nb.name,unit:u.unit,floor:fl,roomNo:r.id,unitNo:u.unit,area:r.area||'',orientation:r.orientation||'',status:'待售',soldDate:'',customerName:'',customerSource:'',baseTotalPrice:'',baseUnitPrice:'',soldTotalPrice:'',soldUnitPrice:'',channelCommission:'',commissionRate:'',priceAfterCommissionTotal:'',priceAfterCommissionUnit:'',finalDiscount:'',isChannel:'',unsellable:uf};
+    });});});
+    S.init=true;ss();
+    document.getElementById('ss2').style.display='none';document.getElementById('ss3').style.display='block';
+    document.querySelectorAll('.step')[0].className='step done';document.querySelectorAll('.step')[1].className='step done';document.querySelectorAll('.step')[2].className='step active';
+    toast('楼栋已更新','success');return;
+  }
+
+  // Template merge mode
+  if(window._tmpMerge){
+    window._tmpMerge=null;
+    bc.forEach(newCfg=>{
+      if(!newCfg.name.trim())return;
+      const old={};Object.keys(S.rms).forEach(k=>{if(k.startsWith(newCfg.name+'-'))old[k]={...S.rms[k]};});
+      Object.keys(S.rms).forEach(k=>{if(k.startsWith(newCfg.name+'-'))delete S.rms[k];});
+      S.blds=S.blds.filter(b=>b.name!==newCfg.name);
+      const nb={id:'bld_'+S.blds.length,name:newCfg.name,units:newCfg.units,floorFrom:newCfg.floorFrom||1,floorTo:newCfg.floorTo||18,roomIdentifiers:newCfg.roomIdentifiers.map(u=>({unit:u.unit,rooms:u.rooms.map(r=>({...r})),unitName:u.unitName||''}))};
+      S.blds.push(nb);
+      const fs=[];for(let f=nb.floorTo;f>=nb.floorFrom;f--)fs.push(f);
+      fs.forEach(fl=>{nb.roomIdentifiers.forEach(u=>{u.rooms.forEach(r=>{const id=`${nb.name}-${u.unit}-${fl}-${r.id}`;const o=old[id];
+        const uf2=isUnsfFloor(r.unsellableFloors,fl);S.rms[id]=o?{...o,area:r.area||o.area,orientation:r.orientation||o.orientation}:{id,building:nb.name,unit:u.unit,floor:fl,roomNo:r.id,unitNo:u.unit,area:r.area||'',orientation:r.orientation||'',status:'待售',soldDate:'',customerName:'',customerSource:'',baseTotalPrice:'',baseUnitPrice:'',soldTotalPrice:'',soldUnitPrice:'',channelCommission:'',commissionRate:'',priceAfterCommissionTotal:'',priceAfterCommissionUnit:'',finalDiscount:'',isChannel:'',unsellable:uf2};
+      });});});
+    });
+    S.init=true;ss();
+    document.getElementById('ss2').style.display='none';document.getElementById('ss3').style.display='block';
+    document.querySelectorAll('.step')[0].className='step done';document.querySelectorAll('.step')[1].className='step done';document.querySelectorAll('.step')[2].className='step active';
+    toast('更新完成！共 '+Object.keys(S.rms).length+' 套房源');
+    return;
+  }
+
+  // Normal full init
+  if(S.init&&Object.keys(S.rms).length>0){if(!confirm('⚠️ 已有数据，重新初始化将覆盖！确定？'))return;}
+  bc = bc.filter(b => b.name.trim());
+  if (!bc.length) { toast('请至少添加一个有名称的楼栋','error'); return; }
+  S.blds=bc.map((c,i)=>({id:'bld_'+i,name:c.name,units:c.units,floorFrom:c.floorFrom,floorTo:c.floorTo,roomIdentifiers:c.roomIdentifiers.map(u=>({unit:u.unit,rooms:u.rooms.map(r=>({...r})),unitName:u.unitName||''}))}));
+  S.rms={};
+  S.blds.forEach(b=>{const fs=[];for(let f=b.floorTo;f>=b.floorFrom;f--)fs.push(f);fs.forEach(fl=>{b.roomIdentifiers.forEach(u=>{u.rooms.forEach(r=>{const id=`${b.name}-${u.unit}-${fl}-${r.id}`;const uf=isUnsfFloor(r.unsellableFloors,fl);S.rms[id]={id,building:b.name,unit:u.unit,floor:fl,roomNo:r.id,unitNo:u.unit,area:r.area||'',orientation:r.orientation||'',status:'待售',soldDate:'',customerName:'',customerSource:'',baseTotalPrice:'',baseUnitPrice:'',soldTotalPrice:'',soldUnitPrice:'',channelCommission:'',commissionRate:'',priceAfterCommissionTotal:'',priceAfterCommissionUnit:'',finalDiscount:'',isChannel:'',unsellable:uf};});});});});
+  S.init=true;ss();
+  document.getElementById('ss2').style.display='none';document.getElementById('ss3').style.display='block';
+  document.querySelectorAll('.step')[0].className='step done';document.querySelectorAll('.step')[1].className='step done';document.querySelectorAll('.step')[2].className='step active';
+  toast('初始化完成！共 '+Object.keys(S.rms).length+' 套房源');
+}
+
+// === SETTINGS ===
+const SOLD_FIELDS = [
+  {k:'date',l:'成交日期'},{k:'bu',l:'底单价'},{k:'su',l:'成交单价'},{k:'cr',l:'佣金点位'},
+  {k:'ap',l:'扣佣后单价'},{k:'disc',l:'实际折扣'},{k:'cust',l:'客户姓名'},{k:'src',l:'来访途径'},
+  {k:'orient',l:'朝向'}
+];
+const UNSOLD_FIELDS = [
+  {k:'bu',l:'底单价'},{k:'bt',l:'底总价'},{k:'area',l:'面积'},{k:'orient',l:'朝向'}
+];
+
+function openSettings(){
+  const s=S.sf||['date','bu','su','cr','ap','disc'];
+  const u=S.uf||['bu','orient'];
+  document.getElementById('chk-hover').checked=S.hover!==false;
+  document.getElementById('s-project-name').value=S.projectName||'';
+  const we=document.getElementById('chk-wipe');if(we)we.checked=S.autoWipe===true;
+  document.getElementById('sold-fields').innerHTML=SOLD_FIELDS.map(f=>`<label class="check-item"><input type="checkbox" value="${f.k}" ${s.includes(f.k)?'checked':''}> ${f.l}</label>`).join('');
+  document.getElementById('unsold-fields').innerHTML=UNSOLD_FIELDS.map(f=>`<label class="check-item"><input type="checkbox" value="${f.k}" ${u.includes(f.k)?'checked':''}> ${f.l}</label>`).join('');
+  // Set width level radio
+  const wl=S.wl||'standard';
+  document.querySelectorAll('input[name="wl"]').forEach(r=>r.checked=r.value===wl);
+  document.getElementById('settings-modal').classList.add('active');
+}
+function applySettings(){
+  S.hover=document.getElementById('chk-hover').checked;
+  const we=document.getElementById('chk-wipe');if(we)S.autoWipe=we.checked;
+  const pn=document.getElementById('s-project-name').value.trim();
+  if(pn){S.projectName=pn;document.getElementById('s-project-subtitle').textContent=pn+' · 销售控制';}
+  S.sf=[...document.querySelectorAll('#sold-fields input:checked')].map(i=>i.value);
+  S.uf=[...document.querySelectorAll('#unsold-fields input:checked')].map(i=>i.value);
+  ss(); closeModal('settings-modal');
+  // Re-render current building without switching tab
+  if(S.init&&ct<S.blds.length)rBT(S.blds[ct]);else rc();
+  toast('设置已应用');
+}
+function closeSettings(){closeModal('settings-modal');}
+function showHelp(){document.getElementById('help-modal').classList.add('active');}
+function exportFramework(){
+  if(!S.init||!S.blds.length){toast('无框架数据可导出','error');return;}
+  const fw={blds:S.blds.map(b=>({name:b.name,units:b.units,floorFrom:b.floorFrom,floorTo:b.floorTo,roomIdentifiers:b.roomIdentifiers.map(u=>({unit:u.unit,rooms:u.rooms.map(r=>({id:r.id,area:r.area,orientation:r.orientation,unsellableFloors:r.unsellableFloors||''})),unitName:u.unitName||''}))}))};
+  const blob=new Blob([JSON.stringify(fw,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='楼座框架_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  URL.revokeObjectURL(a.href);toast('框架已导出','success');
+}
+function importFramework(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=function(ev){
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!data.blds||!data.blds.length){toast('无效的框架文件','error');return;}
+      // Store as template for init
+      window._fwData=data.blds;
+      toast('已加载 '+data.blds.length+' 栋楼，跳转至初始化...','info');
+      // Go to init step 1 with imported data
+      bc=[];
+      data.blds.forEach(b=>{bc.push({name:b.name||'',units:b.units||1,floorFrom:b.floorFrom||1,floorTo:b.floorTo||18,roomIdentifiers:(b.roomIdentifiers||[]).map(u=>({unit:u.unit,rooms:(u.rooms||[]).map(r=>({id:r.id,area:r.area||'',orientation:r.orientation||'',unsellableFloors:r.unsellableFloors||''})),unitName:u.unitName||''}))});});
+      ss2();
+      toast('已导入框架，请检查后确认');
+    }catch(err){toast('解析失败: '+err.message,'error');}
+  };
+  r.readAsText(f);
+  e.target.value='';
+}
+
+// === CONTROL ===
+function rc(){
+  try {
+  const namedBlds=S.blds.filter(b=>b.name&&b.name.trim());
+  if(!namedBlds.length){S.blds=namedBlds;ss();}
+  if(!S.init||!namedBlds.length){
+    document.getElementById('stats-bar').className='stats-bar';
+    document.getElementById('project-stats').className='';
+    document.getElementById('cb').innerHTML=`<div class="empty-state"><div class="icon">📊</div><h3>暂无数据</h3><p>请先完成初始化配置。</p><button class="btn btn-primary" onclick="ss2()">开始配置</button></div>`;
+    return;
+  }
+  // Compute project-wide stats (exclude unsellable rooms)
+  const allRms=Object.values(S.rms).filter(r=>!isUnsellable(r));
+  const allSold=allRms.filter(r=>isSold(r)),allUnsl=allRms.filter(r=>!isSold(r));
+  const allArea=allRms.reduce((s,r)=>s+(parseFloat(r.area)||0),0);
+  const allRev=allSold.reduce((s,r)=>s+(parseFloat(r.soldTotalPrice)||0),0);
+  const rate=allRms.length?((allSold.length/allRms.length*100).toFixed(1)):'0';
+  document.getElementById('project-stats').className=''; // reset
+  document.getElementById('project-stats').classList.add('active');
+  document.getElementById('project-stats').innerHTML=
+    `<span class="ps-item">🏢 <b>${namedBlds.length}</b> 栋</span>`+
+    `<span class="ps-item">🏠 <b>${allRms.length}</b> 套</span>`+
+    `<span class="ps-item">📐 <b>${allArea.toFixed(0)}</b> ㎡</span>`+
+    `<span class="ps-item">🟥 <b>${allSold.length}</b> 已售</span>`+
+    `<span class="ps-item">⬜ <b>${allUnsl.length}</b> 可售</span>`+
+    `<span class="ps-rate">${rate}%</span>`+
+    `<span class="ps-item" style="margin-left:auto;">💰 <b>¥${(allRev/10000).toFixed(0)}</b> 万</span>`;
+  const tb=document.getElementById('tab-bar');
+  const bn0=namedBlds[0].name.replace(/'/g,"'");
+  tb.innerHTML=namedBlds.map((b,i)=>{const c=Object.values(S.rms).filter(r=>r.building===b.name&&isSold(r)).length;const bn=b.name.replace(/'/g,"'");return `<div class="tab-item ${i===0?'active':''}" onclick="sw2('${bn}',${i})">${b.name} <span class="cnt">(${c}已售)</span></div>`;}).join('');
+  sw2(namedBlds[0].name,0);
+  } catch(e){toast('rc()出错: '+e.message,'error');console.error(e);}
+}
+function sw2(nm,i){ct=i;document.querySelectorAll('.tab-item').forEach((t,j)=>t.classList.toggle('active',j===i));rBT(S.blds.find(b=>b.name===nm));}
+
+function rBT(b){
+  const body=document.getElementById('cb'),sb=document.getElementById('stats-bar');
+  const fs=[];for(let f=b.floorTo;f>=b.floorFrom;f--)fs.push(f);
+  const us=b.roomIdentifiers||[];
+  const br=Object.values(S.rms).filter(r=>r.building===b.name);
+  const ex=br.filter(r=>isUnsellable(r));
+  const br2=br.filter(r=>!isUnsellable(r));
+  const sd=br2.filter(r=>isSold(r)),usd=br2.filter(r=>!isSold(r));
+  const ta=br2.reduce((s,r)=>s+(parseFloat(r.area)||0),0);
+  const tr=sd.reduce((s,r)=>s+(parseFloat(r.soldTotalPrice)||0),0);
+  const ft=S.filter||{showSold:true,showUnsold:true,showChannel:false,years:[],months:[]};
+
+  // Build years from sold data
+  const years=[];
+  sd.forEach(r=>{if(r.soldDate){const y=r.soldDate.slice(0,4);if(!years.includes(y))years.push(y);}});
+  years.sort();
+
+  sb.className='stats-bar active';
+  sb.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;">
+    <span class="stat-item">🏠 <b>${br2.length}</b></span>
+    <span class="stat-item">面积 <b>${ta.toFixed(1)}</b> ㎡</span>
+    <span class="stat-item">🟥 <b>${sd.length}</b></span>
+    <span class="stat-item">⬜ <b>${usd.length}</b></span>
+    <span class="stat-item">💰 <b>¥${(tr/10000).toFixed(0)}</b> 万</span>
+  </div>
+  <div style="display:flex;gap:6px;">
+    <button class="btn btn-danger btn-sm" onclick="delBld('${b.name}')">🗑️ 删除楼栋</button>
+    <button class="btn btn-outline btn-sm" onclick="editBF('${b.name}')">✏️ 楼栋框架</button>
+    <button class="btn btn-sm" style="color:#ea580c;" onclick="clearBldData('${b.name}')">🧹 清空数据</button>
+    <button class="btn btn-sm" onclick="printCtrl('${b.name}')" style="color:var(--ts);">🖨️ 打印PDF</button>
+    <button class="btn btn-sm" style="color:#16a34a;" onclick="exportExcel('${b.name}')">📊 导出Excel</button>
+  </div>
+  <div class="filter-bar" style="margin-top:4px;width:100%;">
+    <label><input type="checkbox" ${ft.showUnsold?'checked':''} onchange="setFilter('showUnsold',this.checked)">未售</label>
+    <label><input type="checkbox" ${ft.showSold?'checked':''} onchange="setFilter('showSold',this.checked)">已售</label>
+    <label class="${ft.showSold?'':'disabled-label'}"><input type="checkbox" ${ft.showChannel?'checked':''} ${ft.showSold?'':'disabled'} onchange="setFilter('showChannel',this.checked)">${ft.showChannel?'✅':'☐'}渠道成交</label>
+    <span style="color:var(--tl);">|</span>
+    <button class="btn btn-sm" style="padding:3px 8px;font-size:11px;${ft.showSold?'':'opacity:0.35;background:var(--bg);color:var(--ts);border:1px solid var(--bd);'}" onclick="${ft.showSold?'showFilterDialog()':'void(0)'}">📅 时间 ${(ft.years||[]).length||(ft.months||[]).length?'('+((ft.years||[]).length+(ft.months||[]).length)+')':''}</button>
+    <button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:var(--bg);color:var(--ts);border:1px solid var(--bd);" onclick="clearFilter()">✕ 清除</button>
+  </div>`;
+
+  // Filter rooms
+  function passFilter(r){
+    const sold=isSold(r);
+    if(sold&&!ft.showSold)return false;
+    // Unsellable rooms are physically absent (lobby/atrium) - always hide
+    if(!sold&&isUnsellable(r))return false;
+    if(!sold&&!isUnsellable(r)&&!ft.showUnsold)return false;
+    // Channel deal filter (only applies to sold rooms) — dim non-channel rooms instead of hiding
+    if(sold&&ft.showChannel){
+      if(r.isChannel!=='是'){/* dimmed in rendCell */}
+    }
+    // Year & month filter (multi-select, only applies to sold rooms)
+    if(sold&&ft.years&&ft.years.length){
+      if(!r.soldDate||!ft.years.some(y=>r.soldDate.startsWith(y)))return false;
+    }
+    if(sold&&ft.months&&ft.months.length){
+      // When years are selected, only check months within selected years; otherwise check all sold months
+      const prefix=ft.years&&ft.years.length?ft.years.join('|'):'\\d{4}';
+      if(!r.soldDate||!ft.months.some(m=>new RegExp('^('+prefix+')-'+m).test(r.soldDate)))return false;
+    }
+    return true;
+  }
+
+  const chDimActive=ft.showChannel; // when true, dim non-channel sold rooms
+  let html=`<table class="scontrol-table"><thead><tr><th class="floor-label">楼层</th>`;
+  us.forEach((u,ui)=>{html+=`<th colspan="${u.rooms.length}" class="unit-header">${u.unitName||(u.unit+'单元')}</th>`;});
+  html+=`</tr><tr><th class="floor-label"></th>`;
+  us.forEach(u=>{u.rooms.forEach(r=>{const a=r.area?r.area+'㎡':'';const o=r.orientation||'';html+=`<th class="room-header"><div onmouseenter="showLegStat(this,'${b.name}',${u.unit},'${r.id}')" onmouseleave="hideLegStat(this)" style="cursor:pointer;">${r.id}</div><div class="area">${a}${a&&o?' · ':''}${o}</div></th>`;});});
+  html+=`</tr></thead><tbody>`;
+  fs.forEach((fl,fi)=>{html+=`<tr class="${fi%2===0?'floor-even':'floor-odd'}"><td class="floor-label">${fl}F</td>`;
+    us.forEach((u,ui)=>{u.rooms.forEach(room=>{const id=`${b.name}-${u.unit}-${fl}-${room.id}`;const d=S.rms[id]||{};const chDim=chDimActive&&isSold(d)&&d.isChannel!=='是';const filterDim=!passFilter(d);html+=rendCell(id,d,b,u.unit,room,fi,chDim,filterDim);});});
+    html+='</tr>';});
+  html+='</tbody></table>';
+  body.innerHTML=html;
+}
+
+function fp(v){if(!v&&v!==0)return'';const n=parseFloat(v);if(isNaN(n))return v.toString();if(n>=10000)return(n/10000).toFixed(n%10000===0?0:1)+'万';return n.toLocaleString('zh-CN');}
+function fn(v){if(!v&&v!==0)return'-';const n=parseFloat(v);if(isNaN(n))return v;return Math.round(n).toLocaleString('zh-CN');}
+function fd(v){if(!v&&v!==0)return'';const n=parseFloat(v);if(isNaN(n))return v;if(n>1)return n.toFixed(1)+'%';return(n*100).toFixed(1)+'%';}
+
+function setFilter(key,val){
+  try {
+  if(!S.filter)S.filter={showSold:true,showUnsold:true,showChannel:false,years:[],months:[]};
+  S.filter[key]=val;
+  // If showSold is unchecked, also clear channel/year/month (they're disabled)
+  if(key==='showSold'&&!val){
+    S.filter.showChannel=false; S.filter.years=[]; S.filter.months=[];
+  }
+  ss();
+  if(ct<S.blds.length)rBT(S.blds[ct]);else rc();
+  } catch(e){toast('筛选出错: '+e.message,'error');console.error(e);}
+}
+
+// Multi-select popover helpers
+function toggleFilterPopup(id){
+  document.querySelectorAll('.filter-popup.show').forEach(el=>{if(el.id!==id)el.classList.remove('show');});
+  document.getElementById(id).classList.toggle('show');
+}
+// Close popovers on outside click
+document.addEventListener('click',function(e){
+  document.querySelectorAll('.filter-popup.show').forEach(el=>{
+    if(!e.target.closest('.filter-popover-wrap'))el.classList.remove('show');
+  });
+});
+// Filter dialog functions
+function showFilterDialog(){
+  if(!S.filter)S.filter={showSold:true,showUnsold:true,showChannel:false,years:[],months:[]};
+  const ft=S.filter;
+  // Collect available years from sold data
+  const years=new Set();
+  Object.values(S.rms).forEach(r=>{if(isSold(r)&&r.soldDate)years.add(r.soldDate.slice(0,4));});
+  const sorted=[...years].sort();
+  // Render year checkboxes
+  const yEl=document.getElementById('fd-years');
+  yEl.innerHTML=sorted.map(y=>`<label class="${(ft.years||[]).includes(y)?'checked':''}" onclick="event.preventDefault();fdToggle('years','${y}',this)"><input type="checkbox" ${(ft.years||[]).includes(y)?'checked':''}>${y}</label>`).join('');
+  // Render month checkboxes
+  const mEl=document.getElementById('fd-months');
+  mEl.innerHTML=['01','02','03','04','05','06','07','08','09','10','11','12'].map(m=>`<label class="${(ft.months||[]).includes(m)?'checked':''}" onclick="event.preventDefault();fdToggle('months','${m}',this)"><input type="checkbox" ${(ft.months||[]).includes(m)?'checked':''}>${parseInt(m)}月</label>`).join('');
+  // Show overlay
+  document.getElementById('filter-overlay').classList.add('show');
+}
+function hideFilterDialog(){
+  document.getElementById('filter-overlay').classList.remove('show');
+}
+function fdToggle(key,val,label){
+  if(!S.filter)S.filter={showSold:true,showUnsold:true,showChannel:false,years:[],months:[]};
+  if(!Array.isArray(S.filter[key]))S.filter[key]=[];
+  const arr=S.filter[key];
+  const idx=arr.indexOf(val);
+  if(idx>=0){arr.splice(idx,1);label.classList.remove('checked');}
+  else{arr.push(val);label.classList.add('checked');}
+  ss();
+  if(ct<S.blds.length)rBT(S.blds[ct]);else rc();
+}
+function fdSelAll(key,selectAll){
+  if(!S.filter)S.filter={showSold:true,showUnsold:true,showChannel:false,years:[],months:[]};
+  const container=document.getElementById(key==='years'?'fd-years':'fd-months');
+  if(!container)return;
+  const labels=container.querySelectorAll('label');
+  if(selectAll){
+    S.filter[key]=Array.from(labels).map(l=>l.querySelector('input').value);
+    labels.forEach(l=>{l.classList.add('checked');l.querySelector('input').checked=true;});
+  }else{
+    S.filter[key]=[];
+    labels.forEach(l=>{l.classList.remove('checked');l.querySelector('input').checked=false;});
+  }
+  ss();
+  if(ct<S.blds.length)rBT(S.blds[ct]);else rc();
+}
+function clearFilter(){
+  S.filter={showSold:true,showUnsold:true,showChannel:false,years:[],months:[]};
+  ss();
+  if(ct<S.blds.length)rBT(S.blds[ct]);else rc();
+}
+
+function rendCell(id,d,b,un,rd,fi,chDim,filterDim){
+  const st=isUnsellable(d)?'不可售':(isSold(d)?'已售':'待售');const cls=st==='已售'?'status-sold':(st==='不可售'?'status-unsellable':'status-unsold');
+  const dc=chDim?' channel-dimmed':'';const fc=filterDim?' filter-dimmed':'';
+  const sf=S.sf||['date','bu','su','cr','ap','disc'], uf=S.uf||['bu'];
+  let c='',tip='';
+  if(st==='已售'){
+    let lines=[`<div class="s">已售${sf.includes('orient')&&d.orientation?'·'+d.orientation:''}</div>`];
+    sf.forEach(f=>{
+      switch(f){
+        case'date':if(d.soldDate)lines.push(`<div class="row"><span class="l">${d.soldDate.slice(0,10).replace(/-/g,'.')}</span></div>`);break;
+        case'bu':if(d.baseUnitPrice)lines.push(`<div class="row"><span class="l">底单 </span><span class="v">${fn(d.baseUnitPrice)}</span></div>`);break;
+        case'su':if(d.soldUnitPrice)lines.push(`<div class="row"><span class="l">成单 </span><span class="v-su">${fn(d.soldUnitPrice)}</span></div>`);break;
+        case'cr':if(d.commissionRate)lines.push(`<div class="row"><span class="l">佣金 </span><span class="v">${fd(d.commissionRate)}</span></div>`);break;
+        case'ap':if(d.priceAfterCommissionUnit)lines.push(`<div class="row"><span class="l">扣佣 </span><span class="v-ap">${fn(d.priceAfterCommissionUnit)}</span></div>`);break;
+        case'disc':if(d.finalDiscount)lines.push(`<div class="row"><span class="l">折扣 </span><span class="v">${fd(d.finalDiscount)}</span></div>`);break;
+        case'cust':if(d.customerName)lines.push(`<div class="row"><span class="v">${d.customerName}</span></div>`);break;
+        case'src':if(d.customerSource)lines.push(`<div class="row"><span class="l">${d.customerSource}</span></div>`);break;
+      }
+    });
+    c=`<div class="cell">${lines.join('')}</div>`;
+    tip=`<h4>${d.floor}F ${id.split('-').pop()}室</h4>
+      <div class="r2"><span class="l2">单元号</span><span class="v2">${d.unitNo||'-'}</span></div>
+      <div class="r2"><span class="l2">面积/朝向</span><span class="v2">${d.area||'-'}㎡ ${d.orientation||''}</span></div>
+      <div class="r2"><span class="l2">客户</span><span class="v2">${d.customerName||'-'}</span></div>
+      <div class="r2"><span class="l2">来访</span><span class="v2">${d.customerSource||'-'}</span></div>
+      <div class="r2" style="border-top:1px solid var(--bd);margin-top:3px;padding-top:3px;"><span class="l2">底总价</span><span class="v2">${d.baseTotalPrice?'¥'+fp(d.baseTotalPrice):'-'}</span></div>
+      <div class="r2"><span class="l2">底单价</span><span class="v2">${d.baseUnitPrice?'¥'+fn(d.baseUnitPrice)+'/㎡':'-'}</span></div>
+      <div class="r2"><span class="l2">成交总价</span><span class="v2">${d.soldTotalPrice?'¥'+fp(d.soldTotalPrice):'-'}</span></div>
+      <div class="r2"><span class="l2">成交单价</span><span class="v2">${d.soldUnitPrice?'¥'+fn(d.soldUnitPrice)+'/㎡':'-'}</span></div>
+      <div class="r2"><span class="l2">渠道佣金</span><span class="v2">${d.channelCommission?'¥'+fp(d.channelCommission):'-'}</span></div>
+      <div class="r2"><span class="l2">佣金点位</span><span class="v2">${d.commissionRate?fd(d.commissionRate):'-'}</span></div>
+      <div class="r2"><span class="l2">扣佣后单价</span><span class="v2" style="color:var(--ac);">${d.priceAfterCommissionUnit?'¥'+fn(d.priceAfterCommissionUnit)+'/㎡':'-'}</span></div>
+      <div class="r2"><span class="l2">最终折扣</span><span class="v2">${d.finalDiscount?fd(d.finalDiscount):'-'}</span></div>
+      <div class="r2"><span class="l2">渠道</span><span class="v2">${d.isChannel||'-'}</span></div>`;
+  } else {
+    let lines=[`<div class="${isUnsellable(d)?'us-unsellable':'us'}">${isUnsellable(d)?'不可售':('待售'+(uf.includes('orient')&&d.orientation?'·'+d.orientation:''))}</div>`];
+    uf.forEach(f=>{
+      switch(f){
+        case'bu':if(d.baseUnitPrice)lines.push(`<div class="row"><span class="l">底单 </span><span class="v">${fn(d.baseUnitPrice)}</span></div>`);break;
+        case'bt':if(d.baseTotalPrice)lines.push(`<div class="row"><span class="l">底总 </span><span class="v">${fp(d.baseTotalPrice)}</span></div>`);break;
+        case'area':if(d.area)lines.push(`<div class="row"><span class="l">面积 </span><span class="v">${d.area}㎡</span></div>`);break;
+      }
+    });
+    c=`<div class="cell">${lines.join('')}</div>`;
+    tip=`<h4>${d.floor}F ${id.split('-').pop()}室</h4>
+      <div class="r2"><span class="l2">单元号</span><span class="v2">${d.unitNo||'-'}</span></div>
+      <div class="r2"><span class="l2">面积/朝向</span><span class="v2">${d.area||'-'}㎡ ${d.orientation||''}</span></div>
+      <div class="r2"><span class="l2">状态</span><span class="v2">${st}</span></div>
+      <div class="r2"><span class="l2">底总价</span><span class="v2">${d.baseTotalPrice?'¥'+fp(d.baseTotalPrice):'-'}</span></div>
+      <div class="r2"><span class="l2">底单价</span><span class="v2">${d.baseUnitPrice?'¥'+fn(d.baseUnitPrice)+'/㎡':'-'}</span></div>`;
+  }
+  return `<td class="room-cell ${cls}${dc}${fc}" onclick="qEdit('${id}')" onmouseenter="showTip(this,event)" onmouseleave="hideTip(this)">${c}<div class="tooltip" style="display:none;">${tip}</div></td>`;
+}
+function showTip(el,ev){
+  if(S.hover===false)return;
+  const tip=el.querySelector('.tooltip');
+  if(!tip)return;
+  tip.style.display='block';
+  // Position dynamically based on viewport
+  const rect=el.getBoundingClientRect();
+  const vw=window.innerWidth,vh=window.innerHeight;
+  const tw=tip.offsetWidth||200,th=tip.offsetHeight||200;
+  let left=rect.left+rect.width/2-tw/2,top;
+  // Decide top or bottom based on available space
+  if(rect.bottom+th+10<=vh){
+    top=rect.bottom+6;
+    tip.className='tooltip top';
+  }else if(rect.top-th-10>=0){
+    top=rect.top-th-6;
+    tip.className='tooltip bottom';
+  }else{
+    top=Math.max(4,rect.top+rect.height/2-th/2);
+    tip.className='tooltip';
+  }
+  // Ensure tooltip stays within viewport horizontally
+  if(left+tw+10>vw)left=vw-tw-10;
+  if(left<10)left=10;
+  tip.style.left=left+'px';tip.style.top=top+'px';tip.style.position='fixed';
+}
+function hideTip(el){
+  const tip=el.querySelector('.tooltip');
+  if(tip)tip.style.display='none';
+}
+function showLegStat(el,bn,unit,roomId){
+  const rooms=Object.values(S.rms).filter(r=>r.building===bn&&r.unit===unit&&r.roomNo===roomId);
+  if(!rooms.length)return;
+  const total=rooms.length;
+  const sold=rooms.filter(r=>isSold(r));
+  const unsold=rooms.filter(r=>!isSold(r)&&!isUnsellable(r));
+  const soldPrice=sold.reduce((s,r)=>s+(parseFloat(r.soldTotalPrice)||0),0);
+  const unsoldPrice=unsold.reduce((s,r)=>s+(parseFloat(r.baseTotalPrice)||0),0);
+  const soldArea=sold.reduce((s,r)=>s+(parseFloat(r.area)||0),0);
+  const unsoldArea=unsold.reduce((s,r)=>s+(parseFloat(r.area)||0),0);
+  const lines=[
+    `<b>${bn} ${unit}单元 ${roomId}户型</b>`,
+    `总套数: ${total}套 | 总面积: ${(soldArea+unsoldArea).toFixed(0)}㎡`,
+    `已售: ${sold.length}套 (${soldArea.toFixed(0)}㎡)`,
+    unsoldPrice?`可售: ${unsold.length}套 (${unsoldArea.toFixed(0)}㎡)`:'',
+    soldPrice?`成交金额: ¥${(soldPrice/10000).toFixed(0)}万`:'',
+    sold.length?`成交均价: ¥${Math.round(soldPrice/soldArea/10000*100)/100}万/㎡`:'',
+  ];
+  // Create tooltip element
+  let tip=el.querySelector('.leg-tip');
+  if(!tip){
+    tip=document.createElement('div');tip.className='leg-tip';
+    tip.style.cssText='position:fixed;z-index:300;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);padding:8px 12px;font-size:11px;line-height:1.6;min-width:180px;pointer-events:none;';
+    el.appendChild(tip);
+  }
+  tip.style.display='block';
+  tip.innerHTML=lines.filter(l=>l).join('<br>');
+  // Position
+  const rect=el.getBoundingClientRect();
+  const tw=tip.offsetWidth||200,th=tip.offsetHeight||120;
+  let left=rect.left+rect.width/2-tw/2,top=rect.bottom+6;
+  const vw=window.innerWidth,vh=window.innerHeight;
+  if(top+th+10>vh)top=rect.top-th-6;
+  if(left+tw+10>vw)left=vw-tw-10;
+  if(left<10)left=10;
+  tip.style.left=left+'px';tip.style.top=top+'px';
+}
+function hideLegStat(el){
+  const tip=el.querySelector('.leg-tip');
+  if(tip)tip.style.display='none';
+}
+function delBld(n){const c=Object.values(S.rms).filter(r=>r.building===n).length;const sd=Object.values(S.rms).filter(r=>r.building===n&&isSold(r));if(c===0){toast('该楼栋无房源','info');return;}if(sd.length>0){toast(`⚠️ 楼栋「${n}」有${sd.length}套已售数据，请先「🧹 清空数据」再删除`,'error');return;}if(c>0&&!confirm(`⚠️ 删除 "${n}" ？${c}套房源将清除，不可恢复！`))return;S.blds=S.blds.filter(b=>b.name!==n);Object.keys(S.rms).forEach(k=>{if(k.startsWith(n+'-'))delete S.rms[k];});ss();toast('已删除','info');rc();}
+function editBF(n){const b=S.blds.find(b=>b.name===n);if(!b)return;bc=[{name:b.name,units:b.units,floorFrom:b.floorFrom,floorTo:b.floorTo,roomIdentifiers:b.roomIdentifiers.map(u=>({unit:u.unit,rooms:u.rooms.map(r=>({id:r.id,area:r.area||'',orientation:r.orientation||''})),unitName:u.unitName||''}))}];window._eb=n;sp('page-setup');document.getElementById('ss1').style.display='none';document.getElementById('ss2').style.display='block';document.querySelectorAll('.step')[0].className='step done';document.querySelectorAll('.step')[1].className='step active';rUC();toast('编辑：'+n,'info');}
+function isSold(d){return !!(d&&(d.soldDate||d.soldTotalPrice));}
+function isUnsellable(d){return d&&d.unsellable===true;}
+function isUnsfFloor(floorsStr,fl){
+  if(!floorsStr)return false;
+  const parts=floorsStr.split(',');
+  for(const p of parts){
+    const t=p.trim();
+    if(!t)continue;
+    if(t.includes('-')){
+      const [a,b]=t.split('-').map(x=>parseInt(x));
+      if(fl>=a&&fl<=b)return true;
+    }else if(parseInt(t)===fl)return true;
+  }
+  return false;
+}
+function clearBldData(n){
+  const allRooms=Object.values(S.rms).filter(r=>r.building===n);
+  const sd=allRooms.filter(r=>isSold(r));
+  if(!sd.length){toast('该楼栋没有已售数据','info');return;}
+  if(!confirm(`⚠️ 清空「${n}」的销售数据？\n${sd.length}条已售记录将清除，楼栋框架保留。不可恢复！`))return;
+  allRooms.forEach(r=>{
+    if(isSold(r)){
+      r.status='待售';r.soldDate='';r.customerName='';r.customerSource='';
+      r.soldTotalPrice='';r.soldUnitPrice='';r.channelCommission='';r.commissionRate='';
+      r.priceAfterCommissionTotal='';r.priceAfterCommissionUnit='';r.finalDiscount='';r.isChannel='';r.unsellable=false;
+    }
+  });
+  ss();toast('已清空 '+sd.length+' 条销售数据','success');
+  if(ct<S.blds.length)rBT(S.blds[ct]);else rc();
+}
+function diagnoseBld(nm){
+  const b=S.blds.find(b=>b.name===nm);
+  if(!b){toast('未找到楼栋: '+nm,'error');return;}
+  const rooms=Object.values(S.rms).filter(r=>r.building===nm);
+  const sold=rooms.filter(r=>isSold(r));
+  const unsellable=rooms.filter(r=>isUnsellable(r));
+  const hasDate=rooms.filter(r=>r.soldDate).length;
+  const hasPrice=rooms.filter(r=>r.soldTotalPrice).length;
+  const ids=b.roomIdentifiers;
+  let idCount=0;
+  ids.forEach(u=>{idCount+=u.rooms.length;});
+  const floors=b.floorTo-b.floorFrom+1;
+  const expected=idCount*floors;
+  const lines=[
+    `🏢 <b>${nm}</b>`,
+    `单元: ${b.units}个，房型: ${idCount}种/单元`,
+    `楼层: ${b.floorFrom}F~${b.floorTo}F (${floors}层)`,
+    `预期房源: ${expected}套 (${idCount}种×${floors}层)`,
+    `实际S.rms: <b>${rooms.length}</b> 套`,
+    `已售: <b>${sold.length}</b>套 | 不可售: ${unsellable.length}套`,
+    `有成交日期: ${hasDate}套 | 有成交总价: ${hasPrice}套`,
+    `房型踢腿配置: ${ids.length}个单元`,
+  ];
+  ids.forEach((u,i)=>{
+    lines.push(`  ${u.unitName||(u.unit+'单元')}: [${u.rooms.map(r=>r.id).join(', ')}]`);
+  });
+  if(rooms.length!==expected){
+    lines.push(`⚠️ <b>房源数量不匹配</b>: 预期${expected}套，实际${rooms.length}套`);
+    lines.push(`💡 建议: 点击「✏️ 楼栋框架」检查该楼栋配置，确认后重新保存`);
+  }
+  if(sold.length===0&&hasDate===0){
+    lines.push(`⚠️ <b>所有房源均无成交日期和成交总价</b>，说明未导入成交数据或字段映射有误`);
+    lines.push(`💡 建议：重新导入成交台账，留意弹窗中的"新增已售"数量`);
+  }else if(sold.length===0&&hasDate>0){
+    lines.push(`⚠️ ${hasDate}套房源有成交日期但未被标记已售，可能缺少成交总价`);
+  }
+  // Sample: show first 3 rooms field check
+  const samples=rooms.slice(0,3);
+  if(samples.length){
+    lines.push(`<hr style="margin:6px 0;"><b>样本检查（前3套）：</b>`);
+    samples.forEach((r,i)=>{
+      lines.push(`  ${r.floor}F ${r.roomNo}室 | 面积:${r.area||'-'} | 日期:${r.soldDate||'空'} | 总价:${r.soldTotalPrice||'空'} | 状态:${r.status||'空'}`);
+    });
+  }
+  // Show as a modal
+  const overlay=document.createElement('div');overlay.className='modal-overlay active';
+  overlay.style.cssText='display:flex;z-index:999;';
+  const box=document.createElement('div');box.className='modal';
+  box.style.cssText='max-width:600px;max-height:80vh;overflow-y:auto;';
+  box.innerHTML=`<h2>🔍 楼栋诊断: ${nm}</h2>
+    <div style="font-size:13px;line-height:1.8;padding:10px;background:#f8f9fa;border-radius:6px;margin:8px 0;">
+      ${lines.join('<br>')}
+    </div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove()">关闭</button></div>`;
+  overlay.appendChild(box);document.body.appendChild(overlay);
+}
+function printCtrl(bn){
+  if(!S.init||!S.blds.length){toast('无数据可打印','error');return;}
+  const b=S.blds.find(b=>b.name===bn);
+  if(!b){toast('未找到楼栋: '+bn,'error');return;}
+  // Count rooms
+  const rooms=Object.values(S.rms).filter(r=>r.building===bn);
+  const sold=rooms.filter(r=>isSold(r));
+  const unsold=rooms.filter(r=>!isSold(r)&&!isUnsellable(r));
+  const totalArea=sold.reduce((s,r)=>s+(parseFloat(r.area)||0),0)+unsold.reduce((s,r)=>s+(parseFloat(r.area)||0),0);
+  const soldArea=sold.reduce((s,r)=>s+(parseFloat(r.area)||0),0);
+  // Set print header
+  document.getElementById('print-header').innerHTML=
+    `<div style="font-size:13px;font-weight:700;color:#1a3a5c;display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #1a3a5c;padding-bottom:4px;margin-bottom:6px;">
+      <span>销控表 · 广州天河源筑 · ${bn}</span>
+      <span style="font-size:11px;font-weight:400;color:#64748b;">
+        ${b.roomIdentifiers.length}个单元 · ${b.floorFrom}F~${b.floorTo}F · 共${rooms.length}套
+        | 已售${sold.length}套(${soldArea.toFixed(0)}㎡) · 可售${unsold.length}套
+      </span>
+    </div>`;
+  const bi=S.blds.findIndex(b=>b.name===bn);
+  if(bi>=0&&bi!==ct){sw2(bn,bi);}
+  setTimeout(()=>{window.print();},300);
+}
+function exportExcel(bn){
+  if(!S.init||!S.blds.length){toast('无数据可导出','error');return;}
+  const b=S.blds.find(b=>b.name===bn);
+  if(!b){toast('未找到楼栋: '+bn,'error');return;}
+  const us=b.roomIdentifiers||[];
+  if(!us.length){toast('楼栋无房型配置','error');return;}
+  const fs=[];for(let f=b.floorTo;f>=b.floorFrom;f--)fs.push(f);
+  const sf=S.sf||['date','bu','su','cr','ap','disc'], uf=S.uf||['bu'];
+  const colsPerRoom=1;
+  const totalCols=1+us.reduce((s,u)=>s+u.rooms.length*colsPerRoom,0);
+  const ws={};
+  const merges=[];
+  const cellStyle=(bg,fc,bold)=>({fill:bg?{fgColor:{rgb:bg}}:undefined,font:{bold:!!bold,color:fc?{rgb:fc}:undefined},alignment:{wrapText:true,vertical:'center',horizontal:'center'},border:{top:{style:'thin',color:{rgb:'64748B'}},bottom:{style:'thin',color:{rgb:'64748B'}},left:{style:'thin',color:{rgb:'64748B'}},right:{style:'thin',color:{rgb:'64748B'}}}});
+  const setCell=(r,c,v,s)=>{ws[XLSX.utils.encode_cell({r,c})]={v:v||'',s};};
+  // Row 0: Unit headers with merge
+  let col=1;
+  us.forEach((u,ui)=>{
+    const startCol=col;
+    const endCol=col+u.rooms.length-1;
+    setCell(0,startCol,u.unitName||(u.unit+'单元'),cellStyle('1A3A5C','FFFFFF',true));
+    if(u.rooms.length>1)merges.push({s:{r:0,c:startCol},e:{r:0,c:endCol}});
+    col+=u.rooms.length;
+  });
+  setCell(0,0,'楼层',cellStyle('1A3A5C','FFFFFF',true));
+  // Row 1: Room headers (roomNo, area/orientation)
+  col=1;
+  us.forEach((u,ui)=>{
+    u.rooms.forEach(rm=>{
+      const txt=rm.id+'\n'+(rm.area?rm.area+'㎡':'')+(rm.area&&rm.orientation?'·':'')+(rm.orientation||'');
+      setCell(1,col,txt,cellStyle('E2E8F0','1E293B',true));
+      col++;
+    });
+  });
+  setCell(1,0,'',cellStyle('E2E8F0','1E293B',true));
+  // Data rows
+  fs.forEach((fl,ri)=>{
+    const row=ri+2;
+    setCell(row,0,fl+'F',cellStyle('F1F5F9','1E293B',true));
+    col=1;
+    us.forEach((u,ui)=>{
+      u.rooms.forEach(rm=>{
+        const id=`${b.name}-${u.unit}-${fl}-${rm.id}`;
+        const d=S.rms[id]||{};
+        const sold=isSold(d);
+        const bg=sold?'FEF2F2':(ri%2===0?'FFFFFF':'F8FAFC');
+        const fc=sold?'DC2626':'1E293B';
+        let txt='';
+        if(isUnsellable(d)){
+          txt='不可售';
+        }else if(sold){
+          const lines=['已售'];
+          sf.forEach(fld=>{
+            switch(fld){
+              case'date':if(d.soldDate)lines.push(d.soldDate.slice(0,10).replace(/-/g,'.'));break;
+              case'bu':if(d.baseUnitPrice)lines.push('底'+Math.round(d.baseUnitPrice));break;
+              case'su':if(d.soldUnitPrice)lines.push('成'+Math.round(d.soldUnitPrice));break;
+              case'cr':if(d.commissionRate)lines.push('佣'+d.commissionRate);break;
+              case'ap':if(d.priceAfterCommissionUnit)lines.push('扣'+Math.round(d.priceAfterCommissionUnit));break;
+              case'disc':if(d.finalDiscount)lines.push('折'+d.finalDiscount);break;
+              case'cust':if(d.customerName)lines.push(d.customerName);break;
+              case'src':if(d.customerSource)lines.push(d.customerSource);break;
+            }
+          });
+          txt=lines.join('\n');
+        }else{
+          const lines=['待售'];
+          uf.forEach(fld=>{
+            switch(fld){
+              case'bu':if(d.baseUnitPrice)lines.push('底'+Math.round(d.baseUnitPrice));break;
+              case'bt':if(d.baseTotalPrice)lines.push('总'+Math.round(d.baseTotalPrice/10000)+'万');break;
+              case'area':if(d.area)lines.push(d.area+'㎡');break;
+              case'orient':if(d.orientation)lines.push(d.orientation);break;
+            }
+          });
+          txt=lines.join('\n');
+        }
+        setCell(row,col,txt,cellStyle(bg,fc,false));
+        col++;
+      });
+    });
+  });
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:fs.length+1,c:totalCols-1}});
+  ws['!merges']=merges;
+  ws['!cols']=[{wch:6}];
+  us.forEach(u=>{u.rooms.forEach(()=>ws['!cols'].push({wch:12}));});
+  ws['!rows']=[{hpt:24},{hpt:28}];fs.forEach(()=>ws['!rows'].push({hpt:54}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,bn);
+  try{XLSX.writeFile(wb,bn+'_销控表.xlsx');toast('已导出: '+bn+'_销控表.xlsx','success');}catch(e){toast('导出失败: '+e.message,'error');}
+}
+
+// === IMPORT ===
+function showImportLedger(){if(!S.init){toast('请先初始化','error');return;}document.getElementById('import-modal').classList.add('active');document.getElementById('import-area').style.display='none';document.getElementById('import-btn').style.display='none';document.getElementById('ledger-upload').value='';}
+function cm(id){document.getElementById(id).classList.remove('active');}
+function closeModal(id){
+  cm(id);lr=null;
+  // Reset file inputs to allow re-uploading the same file
+  document.querySelectorAll(`#${id} input[type="file"]`).forEach(f=>f.value='');
+}
+
+const CMAP={
+  '楼栋':'building','单元号':'unitNo','单元':'unitNo','房间':'roomNo','房号':'roomNo','面积':'area','预测面积':'area','建筑面积':'area','套内面积':'area',
+  '成交日期':'soldDate','录入系统日期':'soldDate','日期':'soldDate','认购日期':'soldDate','签约日期':'soldDate',
+  '客户姓名':'customerName','客户':'customerName','购房人':'customerName','业主姓名':'customerName',
+  '来访途径':'customerSource','客户来源途径':'customerSource','客户来访途径':'customerSource','来源':'customerSource','客源渠道':'customerSource','带访渠道':'customerSource',
+  '底总价':'baseTotalPrice','促销底价':'baseTotalPrice','备案总价':'baseTotalPrice','底总价(元)':'baseTotalPrice','备案总价(元)':'baseTotalPrice',
+  '底单价':'baseUnitPrice','底单价(元/㎡)':'baseUnitPrice','备案单价':'baseUnitPrice','备案单价(元/㎡)':'baseUnitPrice',
+  '成交总价':'soldTotalPrice','认购总价':'soldTotalPrice','签约总价':'soldTotalPrice','成交总价(元)':'soldTotalPrice','认购总价(元)':'soldTotalPrice','实际总价':'soldTotalPrice',
+  '成交单价':'soldUnitPrice','认购单价':'soldUnitPrice','签约单价':'soldUnitPrice','成交单价(元/㎡)':'soldUnitPrice','认购单价(元/㎡)':'soldUnitPrice','实际单价':'soldUnitPrice',
+  '渠道佣金':'channelCommission','渠道佣金(元)':'channelCommission','渠道费':'channelCommission',
+  '佣金点位':'commissionRate','佣金点位(%)':'commissionRate','佣金率':'commissionRate','佣金点数':'commissionRate','点数':'commissionRate',
+  '佣金':'channelCommission','佣金金额':'channelCommission',
+  '扣除佣金后总价':'priceAfterCommissionTotal','扣除渠道费后总价':'priceAfterCommissionTotal','扣佣后总价':'priceAfterCommissionTotal',
+  '扣佣后总价(元)':'priceAfterCommissionTotal','扣除佣金后总价(元)':'priceAfterCommissionTotal',
+  '扣除佣金后单价':'priceAfterCommissionUnit','扣除渠道费后单价':'priceAfterCommissionUnit','扣佣后单价':'priceAfterCommissionUnit',
+  '扣佣后单价(元/㎡)':'priceAfterCommissionUnit','扣除佣金后单价(元/㎡)':'priceAfterCommissionUnit',
+  '最终折扣':'finalDiscount','折扣':'finalDiscount','折扣幅度':'finalDiscount','折扣率':'finalDiscount',
+  '是否渠道':'isChannel','渠道成交':'isChannel','渠道':'isChannel','渠道成交?':'isChannel',
+  '购买人':'customerName','证件号':'customerSource','证件号码':'customerSource','电话':'customerSource','手机号':'customerSource',
+  '优惠':'finalDiscount','优惠金额':'finalDiscount','折扣金额':'finalDiscount','优惠幅度':'finalDiscount',
+  '楼栋号':'building','栋号':'building'
+};
+const ALL_FIELDS2=[
+  {v:'忽略',l:'— 忽略 —'},{v:'building',l:'楼栋'},{v:'unitNo',l:'单元号'},{v:'roomNo',l:'房间号★'},{v:'area',l:'面积'},
+  {v:'soldDate',l:'成交日期'},{v:'customerName',l:'客户姓名'},{v:'customerSource',l:'来访途径'},
+  {v:'baseTotalPrice',l:'底总价'},{v:'baseUnitPrice',l:'底单价'},{v:'soldTotalPrice',l:'成交总价'},
+  {v:'soldUnitPrice',l:'成交单价'},{v:'channelCommission',l:'渠道佣金'},{v:'commissionRate',l:'佣金点位'},
+  {v:'priceAfterCommissionTotal',l:'扣佣后总价'},{v:'priceAfterCommissionUnit',l:'扣佣后单价'},
+  {v:'isChannel',l:'是否渠道'},{v:'finalDiscount',l:'最终折扣'}
+];
+
+function handleLedgerUpload(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=function(ev){
+    try{
+      const d=new Uint8Array(ev.target.result);const wb=XLSX.read(d,{type:'array'});
+      // Find the data sheet: skip building config sheets, use the data sheet
+      let ws=null, sn=null;
+      for(const name of wb.SheetNames){
+        if(!name.includes('楼栋')&&!name.includes('初始化')&&!name.includes('说明')){
+          const testArr=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:''});
+          // Check if this sheet has a proper header row (>=5 columns filled)
+          for(let i=0;i<Math.min(testArr.length,30);i++){
+            const count=testArr[i].filter(c=>c!==''&&c!==null&&c!==undefined).length;
+            if(count>=5){ws=wb.Sheets[name];sn=name;break;}
+          }
+          if(ws)break;
+        }
+      }
+      if(!ws){ws=wb.Sheets[wb.SheetNames[0]];sn=wb.SheetNames[0];} // fallback
+      // Read as array first to detect visible columns
+      const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(!arr.length){toast('工作表为空','error');return;}
+      // Detect hidden columns from column metadata (handle all hiding methods)
+      let hiddenCols=new Set();
+      if(ws['!cols']){
+        ws['!cols'].forEach((cinfo,ci)=>{
+          if(cinfo){
+            // Hidden by: hidden flag, zero-width, or zero-pixel width
+            if(cinfo.hidden||cinfo.wch===0||cinfo.wpx===0||(cinfo.width!==undefined&&cinfo.width===0)){
+              hiddenCols.add(ci);
+            }
+          }
+        });
+      }
+      // Find the first row with >=2 non-empty cells as header row (skip title rows)
+      let headerRow=-1;
+      for(let i=0;i<Math.min(arr.length,50);i++){
+        const fillCount=arr[i].filter(c=>c!==''&&c!==null&&c!==undefined).length;
+        if(fillCount>=2){headerRow=i;break;}
+      }
+      if(headerRow<0){toast('未找到表头行','error');return;}
+      // Detect visible columns: skip empty headers AND hidden columns
+      const headers=arr[headerRow];
+      const visibleCols=headers.map((h,ci)=>
+        h!==''&&h!==null&&h!==undefined&&!hiddenCols.has(ci)?ci:-1
+      ).filter(ci=>ci>=0);
+      // Build JSON with only visible columns, skipping hidden rows
+      const json=[];
+      const hiddenRows=new Set();
+      if(ws['!rows']){ws['!rows'].forEach((rinfo,ri)=>{if(rinfo&&rinfo.hidden)hiddenRows.add(ri);});}
+      for(let i=headerRow+1;i<arr.length;i++){
+        if(hiddenRows.has(i))continue; // skip hidden rows
+        const row=arr[i];
+        if(!row||row.every(c=>c===''||c===null||c===undefined))continue;
+        const obj={};
+        visibleCols.forEach(ci=>{obj[headers[ci]]=row[ci]!==undefined?row[ci]:'';});
+        json.push(obj);
+      }
+      if(!json.length){toast('台账为空','error');return;}
+      lr=json;lh=visibleCols.map(ci=>headers[ci]);
+      autoMap();showPrev();
+      document.getElementById('import-btn').style.display='inline-block';
+    }catch(err){toast('读取失败：'+err.message,'error');}
+  };r.readAsArrayBuffer(f);
+}
+
+function autoMap(){
+  lm={};lh.forEach(h=>{
+    const clean=h.replace(/[\s\n（）\(\)]/g,''); // strip whitespace and all parentheses
+    let   m='忽略';
+  for(const[k,v]of Object.entries(CMAP)){
+    const kc=k.replace(/[\s\n（）\(\)]/g,'');
+    if(clean.includes(kc)){m=v;break;}
+  }
+    lm[h]=m;
+  });
+  const grid=document.getElementById('mapping-grid');
+  grid.innerHTML=lh.map(h=>{const val=lm[h]||'忽略';
+    return `<div style="font-size:11px;"><label style="display:block;font-size:10px;color:var(--tl);margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${h}">${h}</label>
+      <select onchange="lm['${h.replace(/'/g,"\\'")}']=this.value" style="width:100%;padding:3px 4px;font-size:10px;border:1px solid var(--bd);border-radius:4px;">
+        ${ALL_FIELDS2.map(f=>`<option value="${f.v}" ${val===f.v?'selected':''}>${f.l}</option>`).join('')}
+      </select></div>`;
+  }).join('');
+}
+
+function showPrev(){
+  const rows=lr.slice(0,8);
+  const wrap=document.getElementById('pw');
+  wrap.innerHTML=`<table><thead><tr>${lh.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>
+    ${rows.map(row=>`<tr>${lh.map(h=>{let v=row[h];if(v===null||v===undefined)v='';if(typeof v==='number'&&v>1000)v=v.toLocaleString('zh-CN');if(v instanceof Date)v=v.toISOString().slice(0,10);return `<td>${v}</td>`;}).join('')}</tr>`).join('')}
+  </tbody></table>`;
+  document.getElementById('ps').textContent=`共 ${lr.length} 条记录`;
+  document.getElementById('import-area').style.display='block';
+}
+
+function doImport(){
+  const rows=lr,m=lm;
+  let mt=0,up=0,sk=0,ns=0;
+  const normBld=s=>s.replace(/[\-号楼\s]/g,'').toLowerCase();
+  const dbg=window._dbg?[]:null; // debug log
+  // Field-level counters for diagnostics
+  const fieldCounts={};
+  const FIELD_LABELS={'soldDate':'成交日期','soldTotalPrice':'成交总价','customerName':'客户姓名','baseTotalPrice':'底总价','baseUnitPrice':'底单价','soldUnitPrice':'成交单价','isChannel':'是否渠道','priceAfterCommissionUnit':'扣佣后单价'};
+  // Sample first 3 rows for field inspection
+  const samples=[];
+  // Per-building match counters for verification
+  const bldCounts={};
+  
+  // Pre-build lookup
+  const roomLookup={};
+  Object.entries(S.rms).forEach(([rid])=>{
+    const ld=rid.lastIndexOf('-'),sl=rid.lastIndexOf('-',ld-1),tl=rid.lastIndexOf('-',sl-1);
+    if(tl<0)return;
+    const sb=rid.substring(0,tl),su=rid.substring(tl+1,sl),sf=rid.substring(sl+1,ld),sr=rid.substring(ld+1);
+    const key=sf+'-'+sr;
+    if(!roomLookup[key])roomLookup[key]=[];
+    roomLookup[key].push({rid,bld:sb,unit:su,floor:sf,room:sr});
+  });
+  if(dbg)dbg.push(`🔍 共 ${Object.keys(roomLookup).length} 个楼层-房间组合`);
+
+  rows.forEach(row=>{
+    let rnc=null,bc2=null,uc=null;
+    for(const[h,v]of Object.entries(m)){if(v==='roomNo')rnc=h;if(v==='building')bc2=h;if(v==='unitNo')uc=h;}
+    const rn=rnc?(row[rnc]||'').toString().trim():'';
+    const bv=bc2?(row[bc2]||'').toString().trim():'';
+    const uv=uc?(row[uc]||'').toString().trim():'';
+    if(!rn){sk++;return;}
+    const rmSfx=rn.slice(-2);const flPfx=rn.slice(0,-2);
+    if(!/^\d+$/.test(rmSfx)||!/^\d*$/.test(flPfx)){sk++;return;}
+    const fl=flPfx?parseInt(flPfx).toString():'';
+    const rm=rmSfx;
+    const un=parseInt(uv)||0;
+    const nb=normBld(bv);
+    const key=fl+'-'+rm;
+    const candidates=roomLookup[key]||[];
+    if(dbg&&bv.includes('1A'))dbg.push(`📌 ${bv} ${uv} ${rn} → key="${key}", 候选${candidates.length}个`);
+
+    let mid=null,reason='';
+    if(candidates.length===1){
+      const c=candidates[0];
+      if(!nb||!c.bld||normBld(c.bld).includes(nb)||nb.includes(normBld(c.bld))){
+        if(!un||c.unit===String(un)){mid=c.rid;reason='唯一匹配';}
+        else reason='单元不匹配: 期望'+un+' 实际'+c.unit;
+      }else{reason='楼栋不匹配: 期望"'+bv+'" 实际"'+c.bld+'"';}
+    }else if(candidates.length>1){
+      for(const c of candidates){
+        if(un&&c.unit!==String(un))continue;
+        if(nb&&!normBld(c.bld).includes(nb)&&!nb.includes(normBld(c.bld)))continue;
+        mid=c.rid;reason='从'+candidates.length+'个候选中过滤';break;
+      }
+      if(!mid)reason='过滤'+candidates.length+'个候选均不匹配';
+    }else{
+      reason='查找key="'+key+'"无候选';
+      for(const[rid]of Object.entries(S.rms)){
+        const sr=rid.substring(rid.lastIndexOf('-')+1);
+        if(sr===rm){mid=rid;reason+='→兜底匹配';break;}
+      }
+      if(!mid)reason+='→兜底也无匹配';
+    }
+
+    if(!mid)sk++;
+    if(dbg&&(!mid||(mid&&bv.includes('1A'))))dbg.push(`${bv} ${uv} ${rn}: ${reason}${mid?' ✅':' ❌'}`);
+
+    if(mid){
+      const rm=S.rms[mid];mt++;
+      bldCounts[rm.building]=(bldCounts[rm.building]||0)+1;
+      for(const[h,field]of Object.entries(m)){
+        if(field==='忽略'||!field)continue;const val=row[h];
+        // Skip empty values and formula strings that XLSX couldn't evaluate
+        if(val===''||val===null||val===undefined)continue;
+        if(typeof val==='string'&&val.startsWith('='))continue;
+        switch(field){
+          case'area':rm.area=parseFloat(val)||val;break;
+          case'unitNo':rm.unitNo=parseInt(val)||val;break;
+          case'soldDate':{let d=val;if(typeof d==='number'){const dt=XLSX.SSF.parse_date_code(d);if(dt)d=`${dt.y}-${String(dt.m).padStart(2,'0')}-${String(dt.d).padStart(2,'0')}`;}else if(d instanceof Date)d=d.toISOString().slice(0,10);rm.soldDate=d;break;}
+          case'customerName':rm.customerName=val;break;
+          case'customerSource':rm.customerSource=val;break;
+          case'baseTotalPrice':rm.baseTotalPrice=parseFloat(val)||'';break;
+          case'baseUnitPrice':rm.baseUnitPrice=parseFloat(val)||'';break;
+          case'soldTotalPrice':rm.soldTotalPrice=parseFloat(val)||'';break;
+          case'soldUnitPrice':rm.soldUnitPrice=parseFloat(val)||'';break;
+          case'channelCommission':rm.channelCommission=parseFloat(val)||'';break;
+          case'commissionRate':rm.commissionRate=val;break;
+          case'priceAfterCommissionTotal':rm.priceAfterCommissionTotal=parseFloat(val)||'';break;
+          case'priceAfterCommissionUnit':rm.priceAfterCommissionUnit=parseFloat(val)||'';break;
+          case'isChannel':rm.isChannel=val;break;
+          case'finalDiscount':rm.finalDiscount=val;break;
+        }
+        // Count non-empty field values for diagnosis
+        if(field!=='忽略'&&field&&val!==''&&val!==null&&val!==undefined){
+          if(!fieldCounts[field])fieldCounts[field]=0;
+          fieldCounts[field]++;
+        }
+      }
+      // Record sample (first 3 matched rows) for field-level inspection
+      if(samples.length<3){
+        const s={rid:mid,building:rm.building,floor:rm.floor,roomNo:rm.roomNo};
+        ['soldDate','soldTotalPrice','customerName','baseTotalPrice'].forEach(f=>{s[f]=rm[f]||'(空)';});
+        // Also log what the raw Excel value was for soldDate and soldTotalPrice
+        for(const[h,field]of Object.entries(m)){
+          if(field==='soldDate')s.rawDate=row[h];
+          if(field==='soldTotalPrice')s.rawPrice=row[h];
+        }
+        samples.push(s);
+      }
+      // Auto-calculate baseUnitPrice from baseTotalPrice / area if missing
+      if(!rm.baseUnitPrice&&rm.baseTotalPrice&&rm.area)rm.baseUnitPrice=Math.round(rm.baseTotalPrice/parseFloat(rm.area));
+      // Auto-calculate soldUnitPrice from soldTotalPrice / area if missing
+      if(!rm.soldUnitPrice&&rm.soldTotalPrice&&rm.area)rm.soldUnitPrice=Math.round(rm.soldTotalPrice/parseFloat(rm.area));
+      // Auto-calculate priceAfterCommissionUnit if missing
+      if(!rm.priceAfterCommissionUnit&&rm.priceAfterCommissionTotal&&rm.area)rm.priceAfterCommissionUnit=Math.round(rm.priceAfterCommissionTotal/parseFloat(rm.area));
+      if(rm.soldDate || rm.soldTotalPrice){rm.status='已售';ns++;}
+      up++;
+    }
+  });
+  
+  // Show result with detailed field stats
+  closeModal('import-modal');
+  // Build field stats summary
+  const fsLines=[`<div>匹配 <b>${mt}</b> 套，新增已售 <b>${ns}</b> 套${sk?'，未匹配 <b>'+sk+'</b> 条':''}</div>`];
+  // Per-building breakdown
+  if(Object.keys(bldCounts).length){
+    const bldSorted=Object.entries(bldCounts).sort((a,b)=>a[0].localeCompare(b[0]));
+    fsLines.push(`<div style="margin:4px 0;font-size:11px;"><b>按楼栋：</b>${bldSorted.map(([k,v])=>`${k}: ${v}套`).join(' | ')}</div>`);
+  }
+  if(mt>0&&ns===0){
+    fsLines.push(`<div style="color:#d00;margin:4px 0;">⚠️ 0套已售——检查以下字段导入数量：</div>`);
+    const keyFields=['soldDate','soldTotalPrice','customerName','baseTotalPrice','isChannel'];
+    keyFields.forEach(f=>{
+      const cnt=fieldCounts[f]||0;
+      const lbl=FIELD_LABELS[f]||f;
+      fsLines.push(`<span style="display:inline-block;margin:2px 8px 2px 0;">${lbl}: <b>${cnt}</b>/${mt}</span>`);
+    });
+    // Show raw Excel values from samples
+    if(samples.length){
+      fsLines.push(`<hr style="margin:6px 0;"><div style="font-size:10px;"><b>原始Excel数据样本前${samples.length}条：</b></div>`);
+      samples.forEach((s,i)=>{
+        fsLines.push(`<div style="font-size:10px;margin:2px 0;">#${i+1} ${s.building} ${s.floor}F ${s.roomNo}室 | 日期原始值: <b>${s.rawDate!==undefined?s.rawDate:'(未映射)'}</b> | 总价原始值: <b>${s.rawPrice!==undefined?s.rawPrice:'(未映射)'}</b> | 导入后日期: ${s.soldDate} | 导入后总价: ${s.soldTotalPrice}</div>`);
+      });
+    }
+  }
+  // Append debug log if available (matching details per row)
+  if(dbg&&dbg.length>0){
+    fsLines.push(`<hr style="margin:6px 0;"><details><summary style="cursor:pointer;font-size:11px;">🐛 详细匹配日志 (${dbg.length}条)</summary><div style="font-size:10px;line-height:1.5;margin-top:4px;max-height:300px;overflow-y:auto;">${dbg.join('<br>')}</div></details>`);
+  }
+  const detailHtml=fsLines.join('');
+  // Show as a modal
+  const overlay=document.createElement('div');overlay.className='modal-overlay active';
+  overlay.style.cssText='display:flex;z-index:999;';
+  const box=document.createElement('div');box.className='modal';
+  box.style.cssText='max-width:680px;max-height:80vh;overflow-y:auto;';
+  box.innerHTML=`<h2>📊 导入结果</h2>
+    <div style="font-size:12px;line-height:1.7;padding:10px;background:#f8f9fa;border-radius:6px;margin:8px 0;">
+      ${detailHtml}
+    </div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove();rc();">关闭并刷新</button></div>`;
+  overlay.appendChild(box);document.body.appendChild(overlay);
+  ss(); rc();
+}
+
+// === EDIT ===
+function editRoomData(){if(!S.init||!S.blds.length){toast('请先初始化','error');return;}document.getElementById('eb').innerHTML=S.blds.map(b=>`<option value="${b.name}">${b.name}</option>`).join('');loadER();document.getElementById('edit-modal').classList.add('active');}
+function loadER(sid){const bn=document.getElementById('eb').value;const sr=document.getElementById('er');const rs=Object.values(S.rms).filter(r=>r.building===bn);sr.innerHTML=rs.map(r=>`<option value="${r.id}">${r.floor}F-${r.roomNo}室(${r.status})</option>`).join('');if(sid)sr.value=sid;loadED();}
+function loadED(){const d=S.rms[document.getElementById('er').value];if(!d)return;
+  // Show room info
+  document.getElementById('ed-room-info').textContent=`${d.building} · ${d.unitNo||d.unit||'-'}单元 · ${d.floor||'-'}F · ${d.roomNo||'-'}室`;
+  // Fill form fields
+  document.getElementById('es').value=d.status||'待售';document.getElementById('ed-date').value=d.soldDate||'';document.getElementById('ed-cust').value=d.customerName||'';document.getElementById('ed-src').value=d.customerSource||'';document.getElementById('ed-btp').value=d.baseTotalPrice||'';document.getElementById('ed-bup').value=d.baseUnitPrice||'';document.getElementById('ed-stp').value=d.soldTotalPrice||'';document.getElementById('ed-sup').value=d.soldUnitPrice||'';document.getElementById('ed-comm').value=d.channelCommission||'';document.getElementById('ed-cr').value=d.commissionRate||'';document.getElementById('ed-pct').value=d.priceAfterCommissionTotal||'';document.getElementById('ed-pcu').value=d.priceAfterCommissionUnit||'';document.getElementById('ed-channel').value=d.isChannel||'';
+  document.getElementById('ed-unsellable').checked=d.unsellable===true;
+  document.getElementById('ed-disc').value=d.finalDiscount||'';
+  toggleunsellable();} // sync disabled state
+function saveED(){const d=S.rms[document.getElementById('er').value];if(!d)return;d.status=document.getElementById('es').value;d.soldDate=document.getElementById('ed-date').value;d.customerName=document.getElementById('ed-cust').value;d.customerSource=document.getElementById('ed-src').value;d.baseTotalPrice=document.getElementById('ed-btp').value?parseFloat(document.getElementById('ed-btp').value):'';d.baseUnitPrice=document.getElementById('ed-bup').value?parseFloat(document.getElementById('ed-bup').value):'';d.soldTotalPrice=document.getElementById('ed-stp').value?parseFloat(document.getElementById('ed-stp').value):'';d.soldUnitPrice=document.getElementById('ed-sup').value?parseFloat(document.getElementById('ed-sup').value):'';d.channelCommission=document.getElementById('ed-comm').value?parseFloat(document.getElementById('ed-comm').value):'';d.commissionRate=document.getElementById('ed-cr').value||'';d.priceAfterCommissionTotal=document.getElementById('ed-pct').value?parseFloat(document.getElementById('ed-pct').value):'';d.priceAfterCommissionUnit=document.getElementById('ed-pcu').value?parseFloat(document.getElementById('ed-pcu').value):'';d.isChannel=document.getElementById('ed-channel').value||'';
+  d.unsellable=document.getElementById('ed-unsellable').checked;
+  d.finalDiscount=document.getElementById('ed-disc').value||'';if(d.soldDate||d.soldTotalPrice)d.status='已售';else d.status='待售';ss();toast('已保存','success');closeModal('edit-modal');rc();}
+function qEdit(id){const d=S.rms[id];if(!d)return;
+  // Populate building dropdown
+  document.getElementById('eb').innerHTML=S.blds.map(b=>`<option value="${b.name}">${b.name}</option>`).join('');
+  document.getElementById('eb').value=d.building;
+  loadER(id);document.getElementById('edit-modal').classList.add('active');}
+function toggleunsellable(){
+  const cb=document.getElementById('ed-unsellable');
+  const grid=document.getElementById('ed-fields');
+  if(!cb||!grid)return;
+  grid.classList.toggle('dimmed',cb.checked);
+  // Also toggle disabled attribute on all inputs in the grid
+  grid.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=cb.checked);
+}
+
+// === TEMPLATE ===
+function downloadTemplate(){
+  const wb=XLSX.utils.book_new();
+  const bd=[['楼栋名称','单元数','起始楼层','终止楼层','单元号','户编号','面积(㎡)','朝向','不可售楼层'],
+    ['示例1号楼',2,1,18,1,'01',124.2,'南',''],['','','','',1,'02',106.7,'南',''],['','','','',1,'03',93.3,'北','1'],['','','','',1,'04',142.0,'南北通透',''],
+    ['','','','',2,'01',124.2,'南',''],['','','','',2,'02',106.7,'南',''],['','','','',2,'03',140.3,'北',''],['','','','',2,'04',181.5,'南北通透',''],[],[],['说明：楼栋名称只填第一行','单元号从1开始','户编号如01,02...','面积和朝向按实际填写','不可售楼层：如"1"或"1,3-5"表示该户型在这些楼层不存']];
+  const ws1=XLSX.utils.aoa_to_sheet(bd);ws1['!cols']=[{wch:14},{wch:8},{wch:10},{wch:10},{wch:8},{wch:8},{wch:10},{wch:12},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,ws1,'楼栋初始化');
+  const ld=[['楼栋','单元号','房间','面积(㎡)','成交日期','客户姓名','来访途径','底总价(元)','底单价(元/㎡)','成交总价(元)','成交单价(元/㎡)','渠道佣金(元)','佣金点位','扣佣后总价(元)','扣佣后单价(元/㎡)','最终折扣'],
+    ['2-2号楼','1','2-2号楼1405',124.2,'2026-01-01','陈穗兰','中介渠道-贝壳',7667842,57973,7200000,57973,360000,0.061,6840000,55074,0.892],
+    ['4号楼','1','4号楼203',140.3,'2026-01-02','兰赛;王嘉婧','中介渠道-贝壳',7424829,50961,7150000,50961,357500,0.037,6792500,48413,0.915]];
+  const ws2=XLSX.utils.aoa_to_sheet(ld);ws2['!cols']=[{wch:12},{wch:8},{wch:16},{wch:10},{wch:12},{wch:16},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:10},{wch:12},{wch:12},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,ws2,'销售台账');
+  XLSX.writeFile(wb,'销控表初始化模板.xlsx');toast('模板已下载');
+}
+
+function uploadTemplate(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=function(ev){
+    try{
+      const d=new Uint8Array(ev.target.result);const wb=XLSX.read(d,{type:'array'});
+      const ws1=wb.Sheets[wb.SheetNames[0]];const json=XLSX.utils.sheet_to_json(ws1,{header:1,defval:''});
+      let cb=null;const pb=[];
+      const skipRowNames=['说明','示例','楼栋名称','楼栋名','单元数','起始楼层'];function isSkip(n){return skipRowNames.some(k=>n.startsWith(k));}
+      for(let i=0;i<json.length;i++){const row=json[i];if(!row||row.length===0)continue;const n=(row[0]||'').toString().trim(),u=parseInt(row[1])||0,ff=parseInt(row[2])||0,ft=parseInt(row[3])||0,un=parseInt(row[4])||0,rid=(row[5]||'').toString().trim(),area=parseFloat(row[6])||'',orient=(row[7]||'').toString().trim(),ufs=(row[8]||'').toString().trim();if(n&&!isSkip(n)){if(n!==cb?.name){if(cb)pb.push(cb);cb={name:n,units:0,floorFrom:0,floorTo:0,roomIdentifiers:[]};}if(u>0){cb.units=Math.max(cb.units,u);cb.floorFrom=ff>0?ff:cb.floorFrom;cb.floorTo=ft>0?ft:cb.floorTo;}}if(cb&&un>0&&rid){while(cb.roomIdentifiers.length<un)cb.roomIdentifiers.push({unit:cb.roomIdentifiers.length+1,rooms:[]});const ui=cb.roomIdentifiers[un-1];if(ui&&!ui.rooms.find(r=>r.id===rid))ui.rooms.push({id:rid,area,orientation:orient,unsellableFloors:ufs});}}
+      if(cb)pb.push(cb);if(!pb.length){toast('未识别到楼栋数据','error');return;}
+      const en=S.blds.map(b=>b.name),in2=pb.map(b=>b.name);
+      const dup=in2.filter(n=>en.includes(n)),nw=in2.filter(n=>!en.includes(n));
+      if(dup.length>0&&!confirm(`⚠️ 以下楼栋已存在：${dup.join('、')}\n上传将更新其框架（保留销售数据）。\n新楼栋：${nw.join('、')||'无'}\n确定？`)){toast('已取消','info');return;}
+      window._tmpMerge=true;bc=pb;rbC();toast('解析 '+pb.length+' 栋楼','success');goStep2();
+    }catch(err){toast('解析失败：'+err.message,'error');}
+  };r.readAsArrayBuffer(f);
+}
+
+function fullReset(){const c=Object.keys(S.rms).length;const inp=prompt(`⚠️ 全盘初始化将清除所有数据！\n${S.blds.length}栋楼，${c}套房源。\n输入 "confirm" 确认：`);if(inp!=='confirm'){toast('已取消','info');return;}localStorage.removeItem('xk_s');S={blds:[],rms:{},init:false,theme:'default',hover:true,sf:['date','bu','su','cr','ap','disc'],uf:['bu'],filter:{showSold:true,showUnsold:true,showChannel:false,years:[],months:[]}};bc=[];toast('已全盘清除','info');ss2();}
+
+// === INIT ===
+ls();
+// Apply width level on load (default to standard)
+if(!S.wl)S.wl='standard';
+setWidthLevel(S.wl);
+// Clean up any empty-named buildings from stored data
+if(S.blds&&S.blds.length){
+  const filtered=S.blds.filter(b=>b.name&&b.name.trim()&&b.name!=='楼栋名称');
+  if(filtered.length!==S.blds.length){S.blds=filtered;ss();}
+}
+const hovEl=document.getElementById('chk-hover');if(hovEl)hovEl.checked=S.hover!==false;
+if(S.init&&S.blds.length)sc();else ss2();
+document.getElementById('import-modal').addEventListener('click',function(e){if(e.target===this)closeModal('import-modal');});
+document.getElementById('edit-modal').addEventListener('click',function(e){if(e.target===this)closeModal('edit-modal');});
+document.getElementById('room-editor-modal').addEventListener('click',function(e){if(e.target===this)closeModal('room-editor-modal');});
+document.getElementById('settings-modal').addEventListener('click',function(e){if(e.target===this)closeSettings();});
+
+// Filter dialog overlay - close on backdrop click
+document.getElementById('filter-overlay').addEventListener('click',function(e){
+  if(e.target===this)hideFilterDialog();
+});
+
+// 🔥 阅后即焚：仅关闭浏览器时清空（刷新页面不触发）
+window.addEventListener('beforeunload',function(){
+  sessionStorage.setItem('xk_wipe_pending','1');
+});
+window.addEventListener('pageshow',function(){
+  const wasPending=sessionStorage.getItem('xk_wipe_pending');
+  sessionStorage.removeItem('xk_wipe_pending');
+  if(wasPending){
+    // Page was refreshed (sessionStorage survived) → do NOT wipe
+    return;
+  }
+  // Browser was closed → if autoWipe on, clear all price/sales data
+  const s=JSON.parse(localStorage.getItem('xk_s')||'{}');
+  if(s.autoWipe===true&&s.init&&s.blds&&s.blds.length){
+    Object.keys(s.rms||{}).forEach(k=>{
+      const r=s.rms[k];
+      r.status='待售';r.soldDate='';r.customerName='';r.customerSource='';
+      r.soldTotalPrice='';r.soldUnitPrice='';r.channelCommission='';r.commissionRate='';
+      r.priceAfterCommissionTotal='';r.priceAfterCommissionUnit='';r.finalDiscount='';r.isChannel='';
+      r.baseTotalPrice='';r.baseUnitPrice='';
+    });
+    localStorage.setItem('xk_s',JSON.stringify(s));
+  }
+});
+</script>
+
+</body>
+</html>
