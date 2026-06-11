@@ -1,0 +1,14 @@
+# Excel 数据文件（含敏感业务数据）
+*.xlsx
+*.xls
+*.csv
+
+# OS files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Editor temp files
+*.swp
+*.swo
+*~
