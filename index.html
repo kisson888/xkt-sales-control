@@ -390,7 +390,7 @@ tr.floor-even td.room-cell.status-sold { background: #fef2f2; }
 </div>
 
 <div id="footer" style="text-align:center;font-size:10px;color:#94a3b8;padding:8px 16px;border-top:1px solid #e2e8f0;margin-top:8px;">
-  AI辅助生成 · 联系 yongbing.yang@gmail.com
+  楼盘销控管理工具
 </div>
 
 <div class="modal-overlay" id="help-modal">
@@ -411,7 +411,6 @@ tr.floor-even td.room-cell.status-sold { background: #fef2f2; }
       · <b>踢腿</b> = 同一户型在垂直方向上的所有房源（一列）<br>
       · <b>框架</b> = 楼栋的物理结构（单元/户型/面积/朝向）<br>
       <hr style="margin:10px 0;border-color:var(--bd);">
-      <div style="font-size:10px;color:#94a3b8;">AI辅助生成 · yongbing.yang@gmail.com</div>
     </div>
     <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal('help-modal')">知道了</button></div>
   </div>
@@ -557,7 +556,7 @@ tr.floor-even td.room-cell.status-sold { background: #fef2f2; }
   </div>
 </div>
 
-<input type="file" id="data-import" accept=".json" style="display:none" onchange="handleDataImport(event)">
+<input type="file" id="data-import" accept=".json" style="display:none">
 
 <!-- Filter dialog overlay -->
 <div class="filter-overlay" id="filter-overlay">
@@ -1287,7 +1286,7 @@ function printCtrl(bn){
   // Set print header
   document.getElementById('print-header').innerHTML=
     `<div style="font-size:13px;font-weight:700;color:#1a3a5c;display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #1a3a5c;padding-bottom:4px;margin-bottom:6px;">
-      <span>销控表 · 广州天河源筑 · ${bn}</span>
+      <span>楼盘销控表 · ${bn}</span>
       <span style="font-size:11px;font-weight:400;color:#64748b;">
         ${b.roomIdentifiers.length}个单元 · ${b.floorFrom}F~${b.floorTo}F · 共${rooms.length}套
         | 已售${sold.length}套(${soldArea.toFixed(0)}㎡) · 可售${unsold.length}套
